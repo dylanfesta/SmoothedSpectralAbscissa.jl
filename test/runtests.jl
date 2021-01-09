@@ -94,19 +94,15 @@ end
         isapprox(sa1,sa2 ; rtol=1E-4) && isapprox(sa1,sa3 ; rtol=1E-4)
     end
     # now test SSA against simpler version
-    @test begin
-        ssa1 = ssa_test(mat)
-        ssa2 = SSA.ssa_simple(mat)
-        isapprox(ssa1,ssa2 ; rtol=1E-4)
-    end
+    ssa1 = ssa_test(mat)
+    ssa2 = SSA.ssa_simple(mat)
+    @test isapprox(ssa1,ssa2 ; rtol=1E-4)
     # same , but with a different epsilon
     mat = randn(n,n) + UniformScaling(1.456)
     eps = 0.31313131
-    @test begin
-        ssa1 = ssa_test(mat; ssa_eps=eps)
-        ssa2 = SSA.ssa_simple(mat,eps)
-        isapprox(ssa1,ssa2 ; rtol=1E-4)
-    end
+    ssa1 = ssa_test(mat; ssa_eps=eps)
+    ssa2 = SSA.ssa_simple(mat,eps)
+    @test isapprox(ssa1,ssa2 ; rtol=1E-4)
 end
 
 @testset "SSA gradient" begin

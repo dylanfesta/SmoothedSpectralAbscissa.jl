@@ -2,10 +2,12 @@ module SmoothedSpectralAbscissa
 using LinearAlgebra, Roots
 
 
-spectral_abscissa(A::AbstractMatrix) =  maximum(real.(eigvals(A)))
+@inline function spectral_abscissa(A::Matrix{R}) where R
+   convert(R,maximum(real.(eigvals(A))))
+end
 
 # trace of matrix product
-function trace_of_product(A::AbstractMatrix,B::AbstractMatrix)
+function trace_of_product(A::Matrix{R},B::Matrix{R}) where R
     n=size(A,1)
     acc=0.0
     for i in 1:n, j in 1:n
@@ -14,7 +16,7 @@ function trace_of_product(A::AbstractMatrix,B::AbstractMatrix)
     return acc
 end
 
-function subtract_diagonal!(A,s)
+function subtract_diagonal!(A::Matrix{R},s::R) where R
     n=size(A,1)
     @simd for i in 1:n
         @inbounds A[i,i] -= s
@@ -23,31 +25,31 @@ function subtract_diagonal!(A,s)
 end
 
 """
-        default_eps_ssa(A::AbstractMatrix{Float64}) -> eps_ssa
+        default_eps_ssa(A::Matrix{Float64}) -> eps_ssa
 
 default value for the ``\\varepsilon`` used to compute the SSA
 """
-default_eps_ssa(A::AbstractMatrix) = 0.01 * 150.0 / size(A,1)
+default_eps_ssa(A::Matrix{<:Real}) = 0.01 * 150.0 / size(A,1)
 
 
-struct SSAAlloc{M<:AbstractMatrix,V<:AbstractVector}
-    R::M
-    R_alloc::M
-    Rt::M
-    Z::M
-    Zt::M
-    D::M
-    D_alloc::M
-    Dt::M
-    At::M
-    P::M
-    Q::M
-    YZt_alloc::M
-    G::M
-    A_eigvals::V
+struct SSAAlloc{R,C}
+    R::Matrix{R}
+    R_alloc::Matrix{R}
+    Rt::Matrix{R}
+    Z::Matrix{R}
+    Zt::Matrix{R}
+    D::Matrix{R}
+    D_alloc::Matrix{R}
+    Dt::Matrix{R}
+    At::Matrix{R}
+    P::Matrix{R}
+    Q::Matrix{R}
+    YZt_alloc::Matrix{R}
+    G::Matrix{R}
+    A_eigvals::Vector{C}
 end
 """
-        SSAAlloc{M<:AbstractMatrix,V<:AbstractVector}(n::Integer) -> SSAAlloc
+        SSAAlloc{M<:Matrix,V<:AbstractVector}(n::Integer) -> SSAAlloc
 
 Allocation structure that makes SSA computation mode efficient. `n` is the size of
 the matrix (or matrices) on which one wants to compute the SSA
@@ -58,11 +60,11 @@ function SSAAlloc(n::Integer)
 end
 
 """
-        PQ_init!(A::AbstractMatrix,PQ::SSAAlloc) -> nothing
+        PQ_init!(A::Matrix,PQ::SSAAlloc) -> nothing
 Prepares SSAAlloc with the matrix on which one wants to compute the SSA.
 Schur decompositions are performed here.
 """
-function PQ_init!(A::AbstractMatrix,PQ::SSAAlloc)
+function PQ_init!(A::Matrix{R},PQ::SSAAlloc{R,C}) where {R,C}
     At=transpose!(PQ.At,A)
     F = schur(A)
     copyto!(PQ.R,F.T)
@@ -76,44 +78,45 @@ function PQ_init!(A::AbstractMatrix,PQ::SSAAlloc)
     return nothing
 end
 
-function spectral_abscissa(PQ::SSAAlloc)
-    maximum(real.(PQ.A_eigvals))
+@inline function spectral_abscissa(PQ::SSAAlloc{R,C}) where {R,C}
+    return convert(R,maximum(real.(PQ.A_eigvals)))
 end
-function get_P_or_Q!(PorQ,s,Z,R,D,YZt_alloc)
+function get_P_or_Q!(PorQ::M,s::Real,Z::M,R::M,D::M,
+        YZt_alloc::M) where M<:Matrix{<:Real}
     subtract_diagonal!(R,s)
     Y, scale = LAPACK.trsyl!('N','T', R, R, D)
     mul!(YZt_alloc,Y,transpose(Z))
     mul!(PorQ,Z,YZt_alloc,inv(scale),0.0)
     return nothing
 end
-function get_P!(s, PQ::SSAAlloc)
+function get_P!(s::T, PQ::SSAAlloc{T,C}) where {T,C}
     R=copyto!(PQ.R_alloc,PQ.R)
     D=copyto!(PQ.D_alloc,PQ.D)
     get_P_or_Q!(PQ.P,s,PQ.Z,R,D,PQ.YZt_alloc)
     return nothing
 end
-function get_Q!(s, PQ::SSAAlloc)
+function get_Q!(s::T, PQ::SSAAlloc{T,C}) where {T,C}
     R=copyto!(PQ.R_alloc,PQ.Rt)
     D=copyto!(PQ.D_alloc,PQ.Dt)
     get_P_or_Q!(PQ.Q,s,PQ.Zt,R,D,PQ.YZt_alloc)
     return nothing
 end
 
-function ssa_simple_obj(s,PQ::SSAAlloc ,ssa_eps,sa)
+function ssa_simple_obj(s::R,PQ::SSAAlloc{R,C},ssa_eps::R,sa::R) where {R,C}
     get_P!( max(sa,s) ,PQ) # SSA is not defined below SA !
     return inv(tr(PQ.P)) - ssa_eps
 end
 
 
 """
-        ssa_simple!(A::AbstractMatrix, with_gradient::Bool,PQ::SSAAlloc ,
+        ssa_simple!(A::Matrix, with_gradient::Bool,PQ::SSAAlloc ,
             ssa_eps::Union{Nothing,Float64}=nothing) -> ssa::Float64
 
 Computes the Smoothed Spectral Abscissa (SSA) of matrix A in its simplest formulation.
 For efficiency, `A` is reallocated in the computation. If `ssa_eps` is not specified, a default value is used.
 """
-function ssa_simple!(A::AbstractMatrix, with_gradient::Bool,PQ::SSAAlloc ,
-        ssa_eps::Union{Nothing,Float64}=nothing)
+function ssa_simple!(A::Matrix{R}, with_gradient::Bool,PQ::SSAAlloc{R,C} ,
+        ssa_eps::Union{Nothing,R}=nothing) where {R,C}
     _ssa_eps = something(ssa_eps, default_eps_ssa(A))
     PQ_init!(A,PQ)
     _sa = spectral_abscissa(PQ)
@@ -130,7 +133,7 @@ function ssa_simple!(A::AbstractMatrix, with_gradient::Bool,PQ::SSAAlloc ,
 end
 # short versions for 1-shot computation and testing
 """
-        ssa_simple(A::AbstractMatrix , ssa_eps::Union{Nothing,Float64}=nothing)
+        ssa_simple(A::Matrix , ssa_eps::Union{Nothing,Float64}=nothing)
             -> ssa::Float64
 
 Computes the Smoothed Spectral Abscissa (SSA) of matrix A in its simplest formulation
@@ -139,14 +142,15 @@ If `ssa_eps` is not specified, a default value is used.
 In case you need to call the SSA iteratively, consider the version that acts on
 pre-allocated memory.
 """
-function ssa_simple(A::AbstractMatrix , ssa_eps::Union{Nothing,Float64}=nothing)
+function ssa_simple(A::Matrix{R},
+      ssa_eps::Union{Nothing,R}=nothing) where R
     PQ=SSAAlloc(size(A,1))
     _epsssa = something(ssa_eps, default_eps_ssa(A))
     return ssa_simple!(copy(A),false,PQ , _epsssa)
 end
 
 """
-      ssa_simple_withgradient(A::AbstractMatrix , ssa_eps::Union{Nothing,Float64}=nothing)
+      ssa_simple_withgradient(A::Matrix , ssa_eps::Union{Nothing,Float64}=nothing)
             -> (ssa,gradient_matrix)::Tuple{Float64,Matrix}
 Computes the Smoothed Spectral Abscissa (SSA) of matrix A in its simplest formulation,
 and also its gradient, for each matrix element.
@@ -155,7 +159,8 @@ If `ssa_eps` is not specified, a default value is used.
 In case you need to call the SSA iteratively (e.g. gradient-based optimization),
  consider the version that acts on pre-allocated memory.
 """
-function ssa_simple_withgradient(A::AbstractMatrix, ssa_eps::Union{Nothing,Float64}=nothing)
+function ssa_simple_withgradient(A::Matrix{R},
+        ssa_eps::Union{Nothing,R}=nothing) where R
     PQ=SSAAlloc(size(A,1))
     epsssa = something(ssa_eps, default_eps_ssa(A))
     ssa = ssa_simple!(copy(A),true,PQ,epsssa)
@@ -167,7 +172,7 @@ mutable struct SSAFun{F<:Real}
     tr_p::F
 end
 SSAFun() = SSAFun(-1.0,-1.0)
-function __g(s,PQ::SSAAlloc ,stuff::SSAFun, ssa_eps,sa)
+function __g(s,PQ::SSAAlloc{R,C} ,stuff::SSAFun{R}, ssa_eps::R,sa::R) where {R,C}
     s = max(sa,s) # not defined below SA !
     _get_P!(s,PQ)
     tr_p = tr(PQ.P)
@@ -175,7 +180,7 @@ function __g(s,PQ::SSAAlloc ,stuff::SSAFun, ssa_eps,sa)
     stuff.s_old=s
     return inv(tr_p) - ssa_eps
 end
-function __dg(s,PQ::SSAAlloc,stuff::SSAFun,sa)
+function __dg(s,PQ::SSAAlloc{R,C},stuff::SSAFun{R},sa::R) where {R,C}
     s = max(sa,s) # not defined below SA !
     do_stuff =  s != stuff.s_old
     do_stuff && _get_P!(s,PQ)
@@ -188,9 +193,9 @@ end
 This uses the Newton method and the analytic derivative ,
 seems as fast as the Order16 method
 """
-function ssa_simple_newton(A::AbstractMatrix,
+function ssa_simple_newton(A::Matrix{R},
         with_gradient::Bool,
-        PQ::SSAAlloc , ssa_eps::Union{Nothing,Float64}=nothing)
+        PQ::SSAAlloc{R,C}, ssa_eps::Union{Nothing,R}=nothing) where {R,C}
     _ssa_eps = something(ssa_eps, default_eps_ssa(A))
     PQ_init!(A,PQ)
     _sa = spectral_abscissa(PQ)
@@ -208,7 +213,7 @@ function ssa_simple_newton(A::AbstractMatrix,
     return s_star
 end
 
-function ssa_simple_newton(A::AbstractArray , ssa_eps::Float64=0.0)
+function ssa_simple_newton(A::AbstractArray{R} , ssa_eps::R=zero(R)) where R
     PQ=SSAAlloc(size(A,1))
     return ssa_simple_newton(A,false,PQ , ssa_eps)
 end

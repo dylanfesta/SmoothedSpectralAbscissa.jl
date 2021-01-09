@@ -1,6 +1,6 @@
 using Pkg ; Pkg.activate(joinpath(@__DIR__,".."))
 using SmoothedSpectralAbscissa ; const SSA = SmoothedSpectralAbscissa
-
+using Test
 using Plots
 using BenchmarkTools
 using LinearAlgebra
@@ -59,6 +59,35 @@ function ssa_simple(A::AbstractMatrix, with_gradient::Bool,PQ,
     y = g.(x)
     (x,y)
 end
+##
+
+# check SA
+n = 100
+mat = randn(n,n) + UniformScaling(7.4517)
+Malloc = SSA.SSAAlloc(n)
+@test begin
+    sa1 = maximum(real.(eigvals(mat)))
+    SSA.PQ_init!(mat,Malloc)
+    sa2 = SSA.spectral_abscissa(Malloc)
+    sa3 = SSA.spectral_abscissa(mat)
+    isapprox(sa1,sa2 ; rtol=1E-4) && isapprox(sa1,sa3 ; rtol=1E-4)
+end
+# now test SSA against simpler version
+ssa1 = ssa_test(mat)
+
+SSA.default_eps_ssa(mat) |> typeof
+ssa2 = SSA.ssa_simple(mat)
+@test isapprox(ssa1,ssa2 ; rtol=1E-4)
+# same , but with a different epsilon
+mat = randn(n,n) + UniformScaling(1.456)
+eps = 0.31313131
+ssa1 = ssa_test(mat; ssa_eps=eps)
+ssa2 = SSA.ssa_simple(mat,eps)
+@test isapprox(ssa1,ssa2 ; rtol=1E-4)
+
+
+
+
 ##
 const n = 100
 Alloc = SSA.SSAAlloc(n)
