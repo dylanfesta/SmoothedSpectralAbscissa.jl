@@ -45,7 +45,6 @@ struct SSAAlloc{R,C}
     P::Matrix{R}
     Q::Matrix{R}
     YZt_alloc::Matrix{R}
-    G::Matrix{R}
     A_eigvals::Vector{C}
 end
 """
@@ -56,7 +55,7 @@ the matrix (or matrices) on which one wants to compute the SSA
 """
 function SSAAlloc(n::Integer)
     return SSAAlloc(
-       map( _ -> Matrix{Float64}(undef,n,n),1:13)... , Vector{ComplexF32}(undef,n))
+       map( _ -> Matrix{Float64}(undef,n,n),1:12)... , Vector{ComplexF32}(undef,n))
 end
 
 """
@@ -109,26 +108,25 @@ end
 
 
 """
-        ssa_simple!(A::Matrix, with_gradient::Bool,PQ::SSAAlloc ,
-            ssa_eps::Union{Nothing,Float64}=nothing) -> ssa::Float64
+    ssa_simple!(A::Matrix{R},grad::Union{Nothing,Matrix{R}},
+          PQ::SSAAlloc{R,C},ssa_eps::Union{Nothing,R}=nothing) where {R,C}
 
 Computes the Smoothed Spectral Abscissa (SSA) of matrix A in its simplest formulation.
 For efficiency, `A` is reallocated in the computation. If `ssa_eps` is not specified, a default value is used.
 """
-function ssa_simple!(A::Matrix{R}, with_gradient::Bool,PQ::SSAAlloc{R,C} ,
-        ssa_eps::Union{Nothing,R}=nothing) where {R,C}
+function ssa_simple!(A::Matrix{R},grad::Union{Nothing,Matrix{R}},
+        PQ::SSAAlloc{R,C},ssa_eps::Union{Nothing,R}=nothing) where {R,C}
     _ssa_eps = something(ssa_eps, default_eps_ssa(A))
     PQ_init!(A,PQ)
     _sa = spectral_abscissa(PQ)
     _start = _sa + 1.05_ssa_eps
     g(s)=ssa_simple_obj(s,PQ,_ssa_eps,_sa)
     s_star::Float64 = find_zero( g, _start , Order2())
-    if with_gradient
-        get_P!(s_star,PQ)
-        get_Q!(s_star,PQ)
-        cc=inv(trace_of_product(PQ.Q,PQ.P))
-        mul!(PQ.G,PQ.Q,PQ.P,cc,0.0)
-    end
+    isnothing(grad) && return s_star
+    get_P!(s_star,PQ)
+    get_Q!(s_star,PQ)
+    cc=inv(trace_of_product(PQ.Q,PQ.P))
+    mul!(grad,PQ.Q,PQ.P,cc,0.0)
     return s_star
 end
 # short versions for 1-shot computation and testing
@@ -146,7 +144,7 @@ function ssa_simple(A::Matrix{R},
       ssa_eps::Union{Nothing,R}=nothing) where R
     PQ=SSAAlloc(size(A,1))
     _epsssa = something(ssa_eps, default_eps_ssa(A))
-    return ssa_simple!(copy(A),false,PQ , _epsssa)
+    return ssa_simple!(copy(A),nothing,PQ , _epsssa)
 end
 
 """
@@ -162,9 +160,10 @@ In case you need to call the SSA iteratively (e.g. gradient-based optimization),
 function ssa_simple_withgradient(A::Matrix{R},
         ssa_eps::Union{Nothing,R}=nothing) where R
     PQ=SSAAlloc(size(A,1))
+    gradmat=similar(A)
     epsssa = something(ssa_eps, default_eps_ssa(A))
-    ssa = ssa_simple!(copy(A),true,PQ,epsssa)
-    return ssa,PQ.G
+    ssa = ssa_simple!(copy(A),gradmat,PQ,epsssa)
+    return ssa,gradmat
 end
 
 mutable struct SSAFun{F<:Real}
@@ -194,7 +193,7 @@ This uses the Newton method and the analytic derivative ,
 seems as fast as the Order16 method
 """
 function ssa_simple_newton(A::Matrix{R},
-        with_gradient::Bool,
+        grad::Union{Nothing,Matrix{R}},
         PQ::SSAAlloc{R,C}, ssa_eps::Union{Nothing,R}=nothing) where {R,C}
     _ssa_eps = something(ssa_eps, default_eps_ssa(A))
     PQ_init!(A,PQ)
@@ -204,18 +203,19 @@ function ssa_simple_newton(A::Matrix{R},
     g(s)=__g(s,PQ,stuff, _ssa_eps,_sa)
     dg(s) = __dg(s,PQ,stuff,_sa)
     s_star = find_zero( (g,dg),_start, Roots.Newton() )
-    if with_gradient
-        P_star = _get_P!(s_star,PQ)
-        Q_star= _get_Q!(s_star,PQ)
-        cc=inv(_trace_prod(Q_star,P_star))
-        mul!(PQ.G,Q_star,P_star,cc,0.0)
-    end
+    # no grad, end here
+    isnothing(grad) && return s_star
+    # if grad...
+    P_star = _get_P!(s_star,PQ)
+    Q_star= _get_Q!(s_star,PQ)
+    cc=inv(_trace_prod(Q_star,P_star))
+    mul!(grad,Q_star,P_star,cc,0.0)
     return s_star
 end
 
 function ssa_simple_newton(A::AbstractArray{R} , ssa_eps::R=zero(R)) where R
     PQ=SSAAlloc(size(A,1))
-    return ssa_simple_newton(A,false,PQ , ssa_eps)
+    return ssa_simple_newton(A,nothing,PQ , ssa_eps)
 end
 
 
