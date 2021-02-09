@@ -121,7 +121,7 @@ function ssa_simple!(A::Matrix{R},grad::Union{Nothing,Matrix{R}},
     _sa = spectral_abscissa(PQ)
     _start = _sa + 1.05_ssa_eps
     g(s)=ssa_simple_obj(s,PQ,_ssa_eps,_sa)
-    s_star::Float64 = find_zero( g, _start , Order2())
+    s_star::Float64 = find_zero( g, _start , Order2();maxevals=100)
     isnothing(grad) && return s_star
     get_P!(s_star,PQ)
     get_Q!(s_star,PQ)
