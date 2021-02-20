@@ -1,4 +1,6 @@
+push!(LOAD_PATH,"../src/")
 using Documenter, SmoothedSpectralAbscissa
+const SSA=SmoothedSpectralAbscissa
 
 makedocs(;
     modules=[SmoothedSpectralAbscissa],
@@ -9,7 +11,6 @@ makedocs(;
     repo="https://github.com/dylanfesta/SmoothedSpectralAbscissa.jl/blob/{commit}{path}#L{line}",
     sitename="SmoothedSpectralAbscissa.jl",
     authors="Dylan Festa",
-    assets=String[],
 )
 
 deploydocs(;
