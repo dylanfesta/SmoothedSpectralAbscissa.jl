@@ -84,12 +84,12 @@ end
 @testset "SA and SSA" begin
     # check SA
     n = 100
-    mat = randn(n,n) + UniformScaling(7.4517)
-    Malloc = SSA.SSAAlloc(n)
+    mat = randn(n,n) + 7.4517I
+    alloc = SSA.SSAAlloc(n)
     @test begin
         sa1 = maximum(real.(eigvals(mat)))
-        SSA.PQ_init!(mat,Malloc)
-        sa2 = SSA.spectral_abscissa(Malloc)
+        SSA.PQ_init!(alloc,mat)
+        sa2 = SSA.spectral_abscissa(alloc)
         sa3 = SSA.spectral_abscissa(mat)
         isapprox(sa1,sa2 ; rtol=1E-4) && isapprox(sa1,sa3 ; rtol=1E-4)
     end
@@ -98,12 +98,50 @@ end
     ssa2 = SSA.ssa_simple(mat)
     @test isapprox(ssa1,ssa2 ; rtol=1E-4)
     # same , but with a different epsilon
-    mat = randn(n,n) + UniformScaling(1.456)
+    mat = randn(n,n) + 1.456I
     eps = 0.31313131
     ssa1 = ssa_test(mat; ssa_eps=eps)
     ssa2 = SSA.ssa_simple(mat,eps)
     @test isapprox(ssa1,ssa2 ; rtol=1E-4)
 end
+
+@testset "SSA Vs Lyapunov eq" begin
+    # when the epsilon of the ssa is the inverse of the energy integral
+    # (computed by the lyap eq) , then the SSA is zero
+    n = 130
+    idm =diagm(0=>fill(1.0,n))
+    matd = diagm(0=>fill(-0.05,n))
+    fval=tr(lyap(matd,idm))
+    ssa=SSA.ssa_simple!(matd,nothing,SSA.SSAAlloc(n),inv(fval))
+    @test isapprox(ssa,0.0;atol=1E-6)
+    matrand=randn(n,n) ./ sqrt(n) - 1.1I
+    fval=tr(lyap(matrand,idm))
+    ssa = SSA.ssa_simple!(matrand,nothing,SSA.SSAAlloc(n),inv(fval))
+    @test isapprox(ssa,0.0;atol=1E-6)
+    matrand2 = matrand + 1.234I
+    ssa = SSA.ssa_simple!(matrand2,nothing,SSA.SSAAlloc(n),inv(fval))
+    @test isapprox(ssa,1.234;atol=1E-6)
+end
+
+@testset "SSA Newton method" begin
+    n = 50
+    matrand=randn(n,n) ./ sqrt(n)
+    alloc=SSA.SSAAlloc(n)
+    SSA.PQ_init!(alloc,matrand)
+    sa_mat = SSA.spectral_abscissa(matrand)
+    eps_ssa = SSA.default_eps_ssa(matrand)
+    fungrad(s) = SSA.ssa_simple_obj_newton(s,alloc,eps_ssa,sa_mat)[1]
+    stests=range(sa_mat+0.01,3sa_mat;length=100)
+    grad_num = map(s->Calculus.gradient(fungrad,s),stests)
+    grad_an = let  vv = map(s->SSA.ssa_simple_obj_newton(s,alloc,eps_ssa,sa_mat),stests)
+        map(v-> v[1]/v[2],vv)
+    end
+    @test all(isapprox.(grad_num,grad_an;atol=1E-5))
+    ssa = SSA.ssa_simple!(matrand,nothing,alloc)
+    ssa_ntw =  SSA.ssa_simple_newton!(matrand,nothing,alloc)
+    @test isapprox(ssa,ssa_ntw;atol=1E-5)
+end
+
 
 @testset "SSA gradient" begin
     n = 26
