@@ -21,5 +21,5 @@ makedocs(;
 
 deploydocs(;
     repo="github.com/dylanfesta/SmoothedSpectralAbscissa.jl",
-    #devbranch="master",
+    devbranch="master",
 )
