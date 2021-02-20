@@ -27,7 +27,7 @@ end
 
 ##
 
-n = 350
+n = 59
 idm =diagm(0=>fill(1.0,n))
 matrand=randn(n,n) ./ sqrt(n) + 10.0I
 matrandln = lessnormal(matrand,1.00001)
@@ -46,3 +46,8 @@ println("\n\n")
 @btime  SSA.ssa_simple_newton!($matrandln,nothing,$alloc)
 
 ##
+A = randn(n,n)
+B = rand(n,n)
+
+SSA._trace_prod(A,B)
+SSA._trace_prod2(A,B)

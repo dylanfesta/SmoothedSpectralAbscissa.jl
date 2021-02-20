@@ -173,7 +173,12 @@ end
 # Find zero with Newton!
 
 function _trace_prod(A::Matrix{R},B::Matrix{R}) where R
-  tr(A*B)
+  n=size(A,1)
+  ret=0.0
+  for i in 1:n, j in 1:n
+    @inbounds ret += A[i,j]*B[j,i]
+  end
+  return ret
 end
 
 
