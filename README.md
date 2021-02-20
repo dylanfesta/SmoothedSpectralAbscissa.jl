@@ -14,6 +14,9 @@ what about these tags?
 [![Coverage](https://coveralls.io/repos/github/dylanfesta/SmoothedSpectralAbscissa.jl/badge.svg?branch=master)](https://coveralls.io/github/dylanfesta/SmoothedSpectralAbscissa.jl?branch=master)
 
 
+[![Coverage](https://codecov.io/gh/dylanfesta/SmoothedSpectralAbscissa.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/dylanfesta/SmoothedSpectralAbscissa.jl)
+
+
 The Purpose of this package is computing the Smoothed Spectral Abscissa of square matrices, and the associated gradient. The computation can be optimized for recursion, so that each new calculation does not reallocate memory.
 
 I implemented only the "simplified" version that does not have projections.
