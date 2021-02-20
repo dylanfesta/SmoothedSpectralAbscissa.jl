@@ -86,8 +86,6 @@ ssa2 = SSA.ssa_simple(mat,eps)
 @test isapprox(ssa1,ssa2 ; rtol=1E-4)
 
 
-
-
 ##
 const n = 100
 Alloc = SSA.SSAAlloc(n)
@@ -103,13 +101,8 @@ xt,yt = ssa_simple(A,false,Alloc)
 plot(xt,yt ; leg = false, linewidth=3)
 
 using Cthulhu
-using Traceur
 
 @code_warntype SSA.ssa_simple(A)
 
 descend(SSA.get_P!,
         Tuple{Float64,SSA.SSAAlloc{Array{Float64,2},Array{Complex{Float32},1}}})
-
-Alloc
-
-descend(SSA.subtract_diagonal!,Tuple{Matrix{Float64},Float64})

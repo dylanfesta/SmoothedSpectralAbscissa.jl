@@ -1,8 +1,8 @@
 # SmoothedSpectralAbscissa.jl
 
-The Purpose of this package is computing the Smoothed Spectral Abscissa of square matrices, and the associated gradient. The computation can be optimized for recursion, so that each new calculation does not reallocate memory.
+This package computes the smoothed spectral abscissa (SSA) of square matrices, and the associated gradient.
 
-I implemented only the "simplified" version that does not have projections.
+I implemented only the "simplified" version of SSA, i.e. the one that does not have projections.
 
 The algorithm is described in the following paper:
 
