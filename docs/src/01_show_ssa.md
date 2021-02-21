@@ -1,5 +1,5 @@
 ```@meta
-EditURL = "<unknown>/examples/01_show_ssa.jl"
+EditURL = "https://dylanfesta.github.io/SmoothedSpectralAbscissa.jl/examples/01_show_ssa.jl"
 ```
 
 # Comparison between SSA and SA
@@ -76,4 +76,3 @@ the SA, as well.
 ---
 
 *This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*
-

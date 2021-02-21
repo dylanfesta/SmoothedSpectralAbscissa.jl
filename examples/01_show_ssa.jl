@@ -49,3 +49,6 @@ coverges to it as as ϵ decreases.
 Moreover if we reduce the SSA parametrically, we find (approximately) a good minimum for
 the SA, as well.
 =#
+
+
+# Literate.markdown("examples/01_show_ssa.jl","docs/src";documenter=true,repo_root_url="https://dylanfesta.github.io/SmoothedSpectralAbscissa.jl") #src
