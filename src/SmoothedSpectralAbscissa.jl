@@ -124,7 +124,6 @@ end
     ssa_simple!(A,grad,PQ,ssa_eps=nothing) -> ssa
 
 Computes the smoothed spectral abscissa (SSA) of matrix A (with identity input-output weighting matrices) and its gradient (optionally).
-For efficiency, `A` is reallocated in the computation.
 If `ssa_eps` is not specified, the default value is set by `default_eps_ssa(A)`
 
 # Arguments
@@ -217,7 +216,7 @@ end
     ssa_simple_newton!(A,grad,PQ,ssa_eps=nothing) -> ssa
 
 Equivalent to `ssa_simple!( ... )`, but uses the Netwon algorightm to compute the SSA.
-It might be slightly more efficient. 
+It might be slightly more efficient.
 """
 function ssa_simple_newton!(A::Matrix{R},
     grad::Union{Nothing,Matrix{R}},

@@ -28,7 +28,7 @@ f(A,\tilde{\alpha}_\varepsilon(A)) = \frac{1}{\varepsilon}
 It is an upper bound to the spectral abscissa of ``A``. Therefore a reduction of SSA to values
 ``< 0`` guarantees dynamical stability.
 
-## Interface
+## Usage
 
 This module does not export functions in the global scope. It is therefore convenient to
 shorten the module name as follows:
@@ -65,6 +65,10 @@ SSA.ssa_simple!
 ```@docs
 SSA.ssa_simple_newton!
 ```
+
+## Examples
+
++ [Example 1, comparison of SA and SSA](./01_show_ssa.md)
 
 
 ## Index
