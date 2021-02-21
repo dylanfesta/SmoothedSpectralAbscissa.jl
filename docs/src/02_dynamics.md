@@ -24,7 +24,7 @@ nothing #hide
 
 Consider continuous linear dynamics, regulated by
 ```math
-\text{d} \mathbf{x} / \text{d}t = A \mathbf{x}
+\frac{\text{d} \mathbf{x}}{\text{d}t} = A \mathbf{x}
 ```
 The soluton is analytic and takes the form:
 ```math
@@ -237,6 +237,8 @@ plot(times,[dyn_norms dyn_norms_opt];
       leg=:topright,linewidth=3,color=[:black :blue],
       xlabel="time",ylabel="norm(x(t))", label=["before otpimization" "after optimization"])
 ```
+
+![So much stability!](./meme1.png)
 
 ## Extras
 

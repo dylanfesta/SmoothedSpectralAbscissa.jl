@@ -19,7 +19,7 @@ Random.seed!(0);
 #=
 Consider continuous linear dynamics, regulated by
 ```math
-\text{d} \mathbf{x} / \text{d}t = A \mathbf{x}
+\frac{\text{d} \mathbf{x}}{\text{d}t} = A \mathbf{x}
 ```
 The soluton is analytic and takes the form:
 ```math
@@ -205,7 +205,9 @@ times,dyn_t_opt,dyn_norms_opt = run_linear_dyn(A_opt,x0,30.,0.5)
 plot(times,[dyn_norms dyn_norms_opt];
       leg=:topright,linewidth=3,color=[:black :blue],
       xlabel="time",ylabel="norm(x(t))", label=["before otpimization" "after optimization"])
-
+#=
+![So much stability!](./meme1.png)
+=#
 
 # ## Extras
 
