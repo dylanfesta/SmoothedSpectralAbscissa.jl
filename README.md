@@ -1,4 +1,9 @@
-# SmoothedSpectralAbscissa
+# SmoothedSpectralAbscissa.jl
+
+
+| **Documentation**         | **Build Status**                                                      |
+|:------------------------- |:--------------------------------------------------------------------- |
+| [![][docs-img]][docs-url] | [![][gh-actions-img]][gh-actions-url] [![][codecov-img]][codecov-url] |
 
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://dylanfesta.github.io/SmoothedSpectralAbscissa.jl/dev)
 [![Build Status](https://github.com/dylanfesta/SmoothedSpectralAbscissa.jl/workflows/CI/badge.svg)](https://github.com/dylanfesta/SmoothedSpectralAbscissa.jl/actions)
@@ -15,8 +20,4 @@ The algorithm is described in the following paper:
 
 **WORK IN PROGRESS!**
 
-[Documentation here](https://dylanfesta.github.io/SmoothedSpectralAbscissa.jl/dev)
-
-## Citing
-
-See `CITATION.bib` for the relevant reference(s).
+[Documentation and usage](https://dylanfesta.github.io/SmoothedSpectralAbscissa.jl/dev)
