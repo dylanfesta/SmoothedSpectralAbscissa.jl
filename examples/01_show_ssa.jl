@@ -1,5 +1,10 @@
 # # Comparison between SSA and SA
 
+#=
+In this example, I compare changes in the SA and in the SSA for a matrix that varies
+parametrically.
+=#
+
 # ### Initialization
 using Plots,NamedColors
 using LinearAlgebra
@@ -51,4 +56,4 @@ the SA, as well.
 =#
 
 
-# Literate.markdown("examples/01_show_ssa.jl","docs/src";documenter=true,repo_root_url="https://dylanfesta.github.io/SmoothedSpectralAbscissa.jl") #src
+# Literate.markdown("examples/01_show_ssa.jl","docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/SmoothedSpectralAbscissa.jl/blob/master") #src

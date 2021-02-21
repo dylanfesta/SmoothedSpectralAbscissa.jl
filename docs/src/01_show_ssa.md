@@ -1,8 +1,11 @@
 ```@meta
-EditURL = "https://dylanfesta.github.io/SmoothedSpectralAbscissa.jl/examples/01_show_ssa.jl"
+EditURL = "https://github.com/dylanfesta/SmoothedSpectralAbscissa.jl/blob/master/examples/01_show_ssa.jl"
 ```
 
 # Comparison between SSA and SA
+
+In this example, I compare changes in the SA and in the SSA for a matrix that varies
+parametrically.
 
 ### Initialization
 
@@ -76,3 +79,4 @@ the SA, as well.
 ---
 
 *This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*
+

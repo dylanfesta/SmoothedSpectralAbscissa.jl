@@ -1,4 +1,5 @@
 # Smoothed Spectral Abscissa (SSA)
+[![](https://img.shields.io/static/v1?logo=GitHub&label=.&message=SmoothedSpectralAbscissa.jl&color=blue)](https://github.com/dylanfesta/SmoothedSpectralAbscissa.jl)
 
 This package computes the smoothed spectral abscissa (SSA) of square matrices, and the associated gradient, as described in:
 
@@ -47,6 +48,13 @@ SSA.ssa_simple
 SSA.ssa_simple_withgradient
 ```
 
+
+## Examples
+
+1. [**Comparison of SA and SSA**](./01_show_ssa.md)
+2. [**SSA as objective to stabilize linear dynamics**](./02_dynamics.md)
+
+
 ## Advanced Interface
 
 When the SSA is used as optimization objective, it is convenient to use the advanced
@@ -65,10 +73,6 @@ SSA.ssa_simple!
 ```@docs
 SSA.ssa_simple_newton!
 ```
-
-## Examples
-
-+ [Example 1, comparison of SA and SSA](./01_show_ssa.md)
 
 
 ## Index
