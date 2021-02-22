@@ -41,11 +41,11 @@ Therefore one can type `SSA.foo` in place of `SmoothedSpectralAbscissa.foo`.
 The functions below compute the SSA (and its gradient) for a matrix ``A``.
 
 ```@docs
-SSA.ssa_simple
+SSA.ssa
 ```
 
 ```@docs
-SSA.ssa_simple_withgradient
+SSA.ssa_withgradient
 ```
 
 
@@ -66,12 +66,9 @@ SSA.SSAAlloc
 ```
 
 Once the space is allocated, the SSA and its gradient can be computed by the following
-functions
+function.
 ```@docs
-SSA.ssa_simple!
-```
-```@docs
-SSA.ssa_simple_newton!
+SSA.ssa!
 ```
 
 

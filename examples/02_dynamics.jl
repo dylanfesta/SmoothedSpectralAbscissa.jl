@@ -47,7 +47,7 @@ function objective_and_grad_simple(x::Vector{R},grad::Union{Nothing,Vector{R}},
     n::Integer,ssa_eps::R,alloc::SSA.SSAAlloc) where R
   mat=reshape(x,(n,n))
   gradmat = isnothing(grad) ? nothing : similar(mat)
-  obj = SSA.ssa_simple!(mat,gradmat,alloc,ssa_eps)
+  obj = SSA.ssa!(mat,gradmat,alloc,ssa_eps)
   if !isnothing(grad)
     for i in eachindex(gradmat)
       grad[i]=gradmat[i]
@@ -154,7 +154,7 @@ function objective_and_grad_nodiag(x::Vector{R},grad::Union{Nothing,Vector{R}},
     mat[i,i]=A0[i,i] # diagonal copied from original matrix
   end
   gradmat = isnothing(grad) ? nothing : similar(mat)
-  obj = SSA.ssa_simple!(mat,gradmat,alloc,ssa_eps)
+  obj = SSA.ssa!(mat,gradmat,alloc,ssa_eps)
   if !isnothing(grad)
     for i in 1:n
       gradmat[i,i] = 0.0 # diagonal has zero gradient

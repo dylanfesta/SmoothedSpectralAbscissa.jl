@@ -64,7 +64,7 @@ plt=plot(thetas,sas ; color=:black, linewidth=3,lab="SA",
 ```@example 01_show_ssa
 mycols=cgrad([colorant"DarkGreen",colorant"orange"])
 for ϵ in ssa_eps_vals
-  ssas = map(θ->SSA.ssa_simple(mat(θ),ϵ),thetas)
+  ssas = map(θ->SSA.ssa(mat(θ),ϵ),thetas)
   plot!(plt,thetas,ssas ; linewidth=2.5 ,
     lab="SSA $ϵ",palette=mycols)
 end
