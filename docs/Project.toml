@@ -1,4 +1,5 @@
 [deps]
+Calculus = "49dc2e85-a5d0-5ad3-a950-438e2897f1b9"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 GR = "28b8d3ca-fb5f-59d9-8090-bfdbd6d07a71"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
