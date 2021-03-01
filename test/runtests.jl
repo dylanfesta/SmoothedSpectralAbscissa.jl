@@ -27,8 +27,8 @@ end
 """
     ssa_test(A::Matrix{Float64})
 
-This is the easiest implementation, to make sure it is the same as in the
- ocaml code, and try to benchmark it already.
+This is the easiest implementation
+for testing and benchmarking.
 """
 function ssa_test(A::Matrix{Float64} ; ssa_eps=nothing)
     myf,d_myf = lyap_simple!(A)
@@ -39,46 +39,14 @@ function ssa_test(A::Matrix{Float64} ; ssa_eps=nothing)
     ssa_start = sa + eps(3sa)
     find_zero( (myg,d_myg),ssa_start, Roots.Newton())
 end
-#
-# function _dg(s,PQ::SSA.SSAAlloc)
-#     SSA._get_P!(s,PQ)
-#     SSA._get_Q!(s,PQ)
-#     fs = tr(PQ.P)
-#     mdfs = 2.0*_trace_prod(PQ.P,PQ.Q)
-#     return mdfs / fs^2
-# end
-# function get_ssa_froot(A::AbstractMatrix, ssa_eps::Float64=0.0)
-#     _ssa_eps = ssa_eps > 0.0 ? ssa_eps : 0.01 * 150.0 / size(A,1) #scales as 1/n
-#     PQ=SSA.SSAAlloc(size(A,1))
-#     SSA.PQ_prepare(A,PQ)
-#     g(s)=_g(s,PQ, _ssa_eps)
-#     dg(s) = _dg(s,PQ)
-#     return (g,dg)
-# end
-#
-# relerror(a,b) = let apb=a+b ; apb == 0.0 ? 0.0 : 2*abs(a-b)/(apb) ; end
-#
-# function gradient_test(A::AbstractMatrix,s::AbstractVector, ssa_eps::Float64=0.0)
-#     g,dg = get_ssa_froot(A,ssa_eps)
-#     an = dg.(s)
-#     num = map( ss -> Calculus.gradient(g,ss) , s )
-#     err = broadcast(relerror, an,num)
-#     an,num,err
-# end
 
-# function f_for_gradient(vmat)
-#     n = sqrt(length(vmat))
-#     @assert isinteger(n)
-#     n = Int64(n)
-#     mat = copy(reshape(vmat,(n,n)))
-#     return ssa_test(mat)
-# end
+
 function f_for_gradient(vmat)
     n = sqrt(length(vmat))
     @assert isinteger(n)
     n = Int64(n)
     mat = copy(reshape(vmat,(n,n)))
-    return SSA.ssa_simple(mat)
+    return SSA.ssa(mat)
 end
 
 #
@@ -97,13 +65,13 @@ end
     end
     # now test SSA against simpler version
     ssa1 = ssa_test(mat)
-    ssa2 = SSA.ssa_simple(mat)
+    ssa2 = SSA.ssa(mat)
     @test isapprox(ssa1,ssa2 ; rtol=1E-4)
     # same , but with a different epsilon
     mat = randn(n,n) + 1.456I
     eps = 0.31313131
     ssa1 = ssa_test(mat; ssa_eps=eps)
-    ssa2 = SSA.ssa_simple(mat,eps)
+    ssa2 = SSA.ssa(mat,eps)
     @test isapprox(ssa1,ssa2 ; rtol=1E-4)
 end
 
@@ -114,14 +82,14 @@ end
     idm =diagm(0=>fill(1.0,n))
     matd = diagm(0=>fill(-0.05,n))
     fval=tr(lyap(matd,idm))
-    ssa=SSA.ssa_simple!(matd,nothing,SSA.SSAAlloc(n),inv(fval))
+    ssa=SSA.ssa!(matd,nothing,SSA.SSAAlloc(n),inv(fval))
     @test isapprox(ssa,0.0;atol=1E-6)
     matrand=randn(n,n) ./ sqrt(n) - 1.1I
     fval=tr(lyap(matrand,idm))
-    ssa = SSA.ssa_simple!(matrand,nothing,SSA.SSAAlloc(n),inv(fval))
+    ssa = SSA.ssa!(matrand,nothing,SSA.SSAAlloc(n),inv(fval))
     @test isapprox(ssa,0.0;atol=1E-6)
     matrand2 = matrand + 1.234I
-    ssa = SSA.ssa_simple!(matrand2,nothing,SSA.SSAAlloc(n),inv(fval))
+    ssa = SSA.ssa!(matrand2,nothing,SSA.SSAAlloc(n),inv(fval))
     @test isapprox(ssa,1.234;atol=1E-6)
 end
 
@@ -140,7 +108,7 @@ end
     end
     @test all(isapprox.(grad_num,grad_an;atol=1E-5))
     ssa = SSA.ssa_simple!(matrand,nothing,alloc)
-    ssa_ntw =  SSA.ssa_simple_newton!(matrand,nothing,alloc)
+    ssa_ntw =  SSA.ssa!(matrand,nothing,alloc;optim_method=SSA.OptimNewton)
     @test isapprox(ssa,ssa_ntw;atol=1E-5)
 end
 
@@ -150,11 +118,11 @@ end
     mat = rand(n,n) + UniformScaling(2.222)
     @test begin
         ssa1 = ssa_test(mat)
-        ssa2 = SSA.ssa_simple(mat)
+        ssa2 = SSA.ssa(mat)
         isapprox(ssa1,ssa2 ; rtol=1E-4)
     end
     @test begin
-        ssa,grad_an = SSA.ssa_simple_withgradient(mat)
+        ssa,grad_an = SSA.ssa_withgradient(mat)
         grad_num = Calculus.gradient(f_for_gradient,mat[:])
         all(isapprox.(grad_an[:],grad_num ; rtol=1E-3) )
     end
