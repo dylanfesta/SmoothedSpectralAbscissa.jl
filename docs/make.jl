@@ -1,6 +1,9 @@
 push!(LOAD_PATH,"../src/")
-using Documenter, SmoothedSpectralAbscissa
-const SSA=SmoothedSpectralAbscissa
+using Documenter
+using SmoothedSpectralAbscissa ; const SSA=SmoothedSpectralAbscissa
+using Plots,NamedColors
+using LinearAlgebra
+using Random
 
 DocMeta.setdocmeta!(SmoothedSpectralAbscissa, :DocTestSetup, :(using SmoothedSpectralAbscissa); recursive=true)
 
