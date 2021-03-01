@@ -130,7 +130,6 @@ STABLE !
 There seems to be a large initial amplificaiton, but the activity settles to low values.
 =#
 
-
 # ## Extras
 
 #=
