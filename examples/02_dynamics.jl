@@ -225,7 +225,10 @@ function test_gradient(myobjfun,y0)
   return (grad_an,grad_num)
 end
 
-_ = let (x1,x2)=test_gradient(objfun!,randn(n^2))
-  scatter(x1,x2;ratio=1)
-  plot!(identity)
+_ = let do_the_test = false
+  if do_the_test
+    (x1,x2)=test_gradient(objfun!,randn(n^2))
+    scatter(x1,x2;ratio=1)
+    plot!(identity)
+  end
 end
