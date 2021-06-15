@@ -54,7 +54,7 @@ end
 @testset "SA and SSA" begin
     # check SA
     n = 100
-    mat = randn(n,n) + 7.4517I
+    mat = randn(n,n) + 1.4517I
     alloc = SSA.SSAAlloc(n)
     @test begin
         sa1 = maximum(real.(eigvals(mat)))
@@ -69,9 +69,9 @@ end
     @test isapprox(ssa1,ssa2 ; rtol=1E-4)
     # same , but with a different epsilon
     mat = randn(n,n) + 1.456I
-    eps = 0.31313131
-    ssa1 = ssa_test(mat; ssa_eps=eps)
-    ssa2 = SSA.ssa(mat,eps)
+    ε = 0.31313131
+    ssa1 = ssa_test(mat; ssa_eps=ε)
+    ssa2 = SSA.ssa(mat,ε)
     @test isapprox(ssa1,ssa2 ; rtol=1E-4)
 end
 
