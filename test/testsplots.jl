@@ -6,7 +6,8 @@ using LinearAlgebra
 using Random
 using Roots
 
-using Pkg ; Pkg.activate(joinpath(@__DIR__,".."))
+push!(LOAD_PATH, abspath(@__DIR__,".."))
+
 using SmoothedSpectralAbscissa ; const SSA = SmoothedSpectralAbscissa
 
 ##

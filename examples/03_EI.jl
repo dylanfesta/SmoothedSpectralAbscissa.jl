@@ -51,7 +51,9 @@ for i in 1:ntot,j in 1:ntot
     Wmask[i,j]=0.
   end
 end
-heatmap(Wmask;ratio=1,color=:greys,axis=nothing,ticks=nothing,border=:none)
+heatmap(Wmask;
+  ratio=1,seriescolor=:bwr,
+  clims=(-1,1),cbar=nothing,axis=nothing,ticks=nothing,border=:none)
 #=
 The matrix `Wmask` shown above specifies the connectivy (presence of an edge, and sign)
 The initial matrix is defined as follows:
@@ -97,7 +99,7 @@ end;
 
 # ## Optimizer and optimization
 
-const ssa_eps=0.005
+const ssa_eps=0.001
 const alloc = SSA.SSAAlloc(ntot)
 const y0 = map(w-> w!=0. ? log(abs(w)) : 0. ,W0[:])
 
@@ -115,19 +117,25 @@ opt_out = optimize(Optim.only_fg!(objfun!),y0,BFGS(),Optim.Options(iterations=1_
 y_opt=Optim.minimizer(opt_out)
 W_opt = Wmask .* exp.(reshape(y_opt,(ntot,ntot))); # convert from beta to weight
 
-# Comparison between inital matrix and the optimized verion. Note the E/I separation.
-heatmap(hcat(W0,fill(NaN,ntot,10),W_opt);ratio=1,axis=nothing,ticks=nothing,border=:none)
+# Comparison between inital matrix and the optimized version. Note the E/I separation.
+_ = let wboth = hcat(W0,fill(NaN,ntot,10),W_opt)
+  _wex = extrema(W_opt)
+  _zero_rel =abs(_wex[1])/(_wex[2]-_wex[1])
+  _cgrad = cgrad([:blue,:white,:red],[0, _zero_rel ,1.])
+  heatmap(wboth;ratio=1,seriescolor=_cgrad,clim=_wex,
+    axis=nothing,ticks=nothing,border=:none)
+end
 
 # Now, as before I consider the norm...
-times,dyn_t_opt,dyn_norms_opt = run_rnn_dynamics(u0,W_opt,h,30.0,0.05)
+times,dyn_t_opt,dyn_norms_opt = run_rnn_dynamics(u0,W_opt,h,40.0,0.05)
 plot(times,dyn_norms_opt;
-      leg=:topright,linewidth=3,color=[:blue],
+      leg=:topright,linewidth=3,color=:blue,
       xlabel="time",ylabel="norm(x(t))", label="after optimization")
 
 #=
 STABLE !
 
-There seems to be a large initial amplificaiton, but the activity settles to low values.
+There seems to be a large initial amplificaiton, but the activity settles to a stable point.
 =#
 
 # ## Extras
