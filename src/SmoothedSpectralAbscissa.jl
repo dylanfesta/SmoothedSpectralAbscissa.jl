@@ -260,7 +260,7 @@ function ssa_withgradient(A::Matrix{R},ssa_eps::Union{Nothing,R}=nothing,
     gradmat=similar(A)
     epsssa = something(ssa_eps, default_eps_ssa(A))
     _ssa = ssa!(copy(A),gradmat,alloc, epsssa;io_matrices=io_matrices)
-    return ssa,gradmat
+    return _ssa,gradmat
 end
 
 
