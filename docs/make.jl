@@ -26,5 +26,5 @@ deploydocs(;
     repo="github.com/dylanfesta/SmoothedSpectralAbscissa.jl",
     devbranch="main",
     devurl="dev",
-    versions = ["stable" => "v^", "v#.#", devurl => "dev"],
+    versions = ["stable" => "v^", "v#.#"]
 )
