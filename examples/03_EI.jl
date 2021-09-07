@@ -4,8 +4,8 @@
 In this example, I optimize an RNN network with E/I units.
 The dynamics is expressed as follows:
 ```math
-\tau\, \frac{\text{d} \mathbf{u}}{\text{d}t} = - \mathbf{u} + W
-\left(\mathbf{u}\right) + \mathbf{h}
+\tau\, \frac{\text{d} \mathbf{u}}{\text{d}t} = - \mathbf{u} + 
+W f\left(\mathbf{u}\right) + \mathbf{h}
 ```
 Where $W$ is a connection matrix with no autapses that preserves the separation
 between E and I units (Dale's law). There is also a sparseness parameter for $W$,
@@ -55,22 +55,22 @@ heatmap(Wmask;
   ratio=1,seriescolor=:bwr,
   clims=(-1,1),cbar=nothing,axis=nothing,ticks=nothing,border=:none)
 #=
-The matrix `Wmask` shown above specifies the connectivy (presence of an edge, and sign)
-The initial matrix is defined as follows:
+The matrix `Wmask` shown above specifies the connectivy 
+(presence of a conneciton, and wether the neuron is E or I)
+The full weight matrix $W$ prior to optimization is defined as follows:
 =#
 W0 = 2.0 .* rand(ntot,ntot) .* Wmask;
 #=
-Even with the leaky term, the dynamics is quite unstable,
-due to the presence of excitatory closed loops, and not enough inhibition.
+Even with the leaky term, the dynamics $\mathbf{u}(t)$ is very unstable.
 =#
 u0 = 3.0.*randn(ntot)
 h = 0.1 .* rand(ntot)
 times,dyn_t,dyn_norms = run_rnn_dynamics(u0,W0,h,10.0,0.05)
 plot(times,dyn_norms;
-  leg=false,linewidth=3,color=:black,xlabel="time",ylabel="norm(x(t))",
+  leg=false,linewidth=3,color=:black,xlabel="time",ylabel="norm(u(t))",
   yscale=:log10,label="before optimization")
 
-# Note that the y-scale is exponential here. The system is highly unstable.
+# Note that the y-scale is exponential here.
 
 # ## Objective function that excludes diagonal
 using Optim
@@ -117,7 +117,8 @@ opt_out = optimize(Optim.only_fg!(objfun!),y0,BFGS(),Optim.Options(iterations=1_
 y_opt=Optim.minimizer(opt_out)
 W_opt = Wmask .* exp.(reshape(y_opt,(ntot,ntot))); # convert from beta to weight
 
-# Comparison between inital matrix and the optimized version. Note the E/I separation.
+# Comparison between inital matrix and the optimized version. 
+# Note the E/I separation and the spontaneous symmetry.
 _ = let wboth = hcat(W0,fill(NaN,ntot,10),W_opt)
   _wex = extrema(W_opt)
   _zero_rel =abs(_wex[1])/(_wex[2]-_wex[1])
@@ -126,7 +127,7 @@ _ = let wboth = hcat(W0,fill(NaN,ntot,10),W_opt)
     axis=nothing,ticks=nothing,border=:none)
 end
 
-# Now, as before I consider the norm...
+# Now, I consider the norm of $\mathbf u(t)$ in the optimized system...
 times,dyn_t_opt,dyn_norms_opt = run_rnn_dynamics(u0,W_opt,h,40.0,0.05)
 plot(times,dyn_norms_opt;
       leg=:topright,linewidth=3,color=:blue,
