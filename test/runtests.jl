@@ -2,7 +2,7 @@ using SmoothedSpectralAbscissa ; const SSA=SmoothedSpectralAbscissa
 using LinearAlgebra, Random
 using Roots,Calculus
 using Test
-Random.seed!(1)
+Random.seed!(0)
 
 
 """

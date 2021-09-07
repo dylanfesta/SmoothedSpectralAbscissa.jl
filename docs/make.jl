@@ -1,4 +1,4 @@
-push!(LOAD_PATH,"../src/")
+push!(LOAD_PATH,abspath(@__DIR__,"..","..","src"))
 using Documenter
 using SmoothedSpectralAbscissa ; const SSA=SmoothedSpectralAbscissa
 using Plots,NamedColors
@@ -24,5 +24,5 @@ makedocs(;
 
 deploydocs(;
     repo="github.com/dylanfesta/SmoothedSpectralAbscissa.jl",
-    devbranch="master",
+    devbranch="main",
 )
