@@ -6,7 +6,7 @@ using LinearAlgebra
 using Random
 using Roots
 
-push!(LOAD_PATH, abspath(@__DIR__,".."))
+push!(LOAD_PATH, abspath(@__DIR__,"..","src"))
 
 using SmoothedSpectralAbscissa ; const SSA = SmoothedSpectralAbscissa
 
@@ -45,7 +45,7 @@ function ssa_test(A::Matrix{Float64} ; ssa_eps=nothing)
     myg(s)= 1.0 / myf(s) - ssa_eps
     d_myg(s) = - d_myf(s) / myf(s)^2
     sa = SSA.spectral_abscissa(A)
-    ssa_start = sa + eps(3sa)
+    ssa_start = sa + 0.5*ssa_eps
     find_zero( (myg,d_myg),ssa_start, Roots.Newton())
 end
 
@@ -54,7 +54,7 @@ function ssa_simple(A::AbstractMatrix, with_gradient::Bool,PQ,
     _ssa_eps = something(ssa_eps, SSA.default_eps_ssa(A))
     SSA.PQ_init!(A,PQ)
     _sa = SSA.spectral_abscissa(PQ)
-    _start = _sa + 1.05_ssa_eps
+    _start = _sa + 0.5*ssa_eps
     g(s)=SSA._g(s,PQ,_ssa_eps,_sa)
     x = range(_start, 10 ; length=200)
     y = g.(x)

@@ -36,7 +36,7 @@ function ssa_test(A::Matrix{Float64} ; ssa_eps=nothing)
     myg(s)= 1.0 / myf(s) - ssa_eps
     d_myg(s) = - d_myf(s) / myf(s)^2
     sa = SSA.spectral_abscissa(A)
-    ssa_start = sa + eps(3sa)
+    ssa_start = sa + 0.5*ssa_eps
     find_zero( (myg,d_myg),ssa_start, Roots.Newton())
 end
 

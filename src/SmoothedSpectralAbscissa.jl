@@ -171,7 +171,6 @@ function ssa!(A::Matrix{R},grad::Union{Nothing,Matrix{R}}, alloc::SSAAlloc{R,C},
      io_matrices::Type{IOIdentity}) where {R,C}
   PQ_init!(alloc,A)
   _sa = spectral_abscissa(alloc)
-  # _start = _sa + 0.1abs(_sa)
   _start = _sa + 0.5*ssa_eps
   objfun(s)=ssa_simple_obj(s,alloc,ssa_eps,_sa)
   _method = Roots.Order2()
@@ -191,8 +190,7 @@ function ssa!(A::Matrix{R},grad::Union{Nothing,Matrix{R}}, alloc::SSAAlloc{R,C},
      io_matrices::Type{IOIdentity}) where {R,C}
   PQ_init!(alloc,A)
   _sa = spectral_abscissa(alloc)
-  # _start = _sa + 0.1abs(_sa)
-  _start = _sa + 0.5*ssa_eps
+  _start = _sa + 0.5*ssa_eps # _start = _sa + 0.1abs(_sa)
   objfun(s)=ssa_simple_obj_newton(s,alloc,ssa_eps,_sa)
   _method = Roots.Newton()
   s_star::R = find_zero(objfun, _start,_method;maxevals=1_000)
