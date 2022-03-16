@@ -1,4 +1,4 @@
-# SmoothedSpectralAbscissa
+# Smoothed Spectral Abscissa
 
 | **Documentation**         | **Build Status**                                                      |
 |:------------------------- |:--------------------------------------------------------------------- |
