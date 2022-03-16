@@ -6,8 +6,6 @@ using LinearAlgebra
 using Random
 using Roots
 
-push!(LOAD_PATH, abspath(@__DIR__,"..","src"))
-
 using SmoothedSpectralAbscissa ; const SSA = SmoothedSpectralAbscissa
 
 ##
