@@ -127,3 +127,43 @@ end
         all(isapprox.(grad_an[:],grad_num ; rtol=1E-3) )
     end
 end
+
+@testset "SSA input-output weighting" begin
+    A = [-1.0 0.0; 0.0 -2.0]
+    A_original = copy(A)
+    alloc = SSA.SSAAlloc(A)
+    grad = similar(A)
+
+    for ssa_eps in (nothing, 0.2)
+        expected_value, expected_grad = SSA.ssa_withgradient(A, ssa_eps)
+        @test isapprox(SSA.ssa(A, ssa_eps, I), expected_value; rtol=1E-12)
+        value, gradient = SSA.ssa_withgradient(A, ssa_eps, I)
+        @test isapprox(value, expected_value; rtol=1E-12)
+        @test isapprox(gradient, expected_grad; rtol=1E-12)
+
+        for method in (SSA.OptimOrder2, SSA.OptimNewton)
+            value = SSA.ssa!(A, grad, alloc, ssa_eps;
+                optim_method=method, input_output_weighting=I)
+            @test isapprox(value, expected_value; rtol=1E-10)
+            @test isapprox(grad, expected_grad; rtol=1E-10)
+            value_without_gradient = SSA.ssa!(A, nothing, alloc, ssa_eps;
+                optim_method=method, input_output_weighting=I)
+            @test isapprox(value_without_gradient, expected_value; rtol=1E-10)
+        end
+    end
+
+    unsupported_weights = (Matrix{Float64}(I, 2, 2), [2.0 0.0; 0.0 3.0],
+        Diagonal([1.0, 1.0]), 2I, 0I, 1.0I)
+    for weighting in unsupported_weights
+        @test_throws r"Input-output weighting.*not implemented" SSA.ssa(A, 0.2, weighting)
+        @test_throws r"Input-output weighting.*not implemented" SSA.ssa_withgradient(A, 0.2, weighting)
+        for method in (SSA.OptimOrder2, SSA.OptimNewton)
+            fill!(grad, -99.0)
+            @test_throws r"Input-output weighting.*not implemented" SSA.ssa!(
+                A, grad, alloc, 0.2; optim_method=method,
+                input_output_weighting=weighting)
+            @test grad == fill(-99.0, size(A))
+        end
+    end
+    @test A == A_original
+end
