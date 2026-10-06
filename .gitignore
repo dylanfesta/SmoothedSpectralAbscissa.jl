@@ -1,9 +1,9 @@
-*.jl.*.cov
-*.jl.cov
 *.jl.mem
 .DS_Store
 Manifest.toml
+Manifest-v*.toml
 /dev/
 /docs/build/
 /docs/site/
 *.directory
+/docs/src/generated/

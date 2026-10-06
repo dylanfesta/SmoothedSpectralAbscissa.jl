@@ -1,171 +1,193 @@
-# # Optimiziation of an excitatory/inhibitory (E/I) recurrent network
+# # Optimization of an excitatory/inhibitory recurrent network
 
-#=
-In this example, I optimize an RNN network with E/I units.
-The dynamics is expressed as follows:
-```math
-\tau\, \frac{\text{d} \mathbf{u}}{\text{d}t} = - \mathbf{u} + 
-W f\left(\mathbf{u}\right) + \mathbf{h}
-```
-Where $W$ is a connection matrix with no autapses that preserves the separation
-between E and I units (Dale's law). There is also a sparseness parameter for $W$,
-to increase the difficulty (and as proof of concept).
-Then there is a leak term $-\mathbf{u}$
-and a constant external input $\mathbf{h}$. Finally the activation function
-$f\left( \cdot \right)$ is a rectified-linear function.
-=#
+# Consider a recurrent network with rectified-linear activation:
+# ```math
+# \frac{d\mathbf{u}}{dt} = -\mathbf{u} + W\max(0,\mathbf{u}) + \mathbf{h}.
+# ```
+# Columns of W distinguish excitatory and inhibitory presynaptic units. The
+# diagonal is zero and a fixed mask specifies the available connections.
 
 # ## Initialization
-using Plots,NamedColors
-using LinearAlgebra,Statistics
-using Random
-using SmoothedSpectralAbscissa ; const SSA=SmoothedSpectralAbscissa
-using OrdinaryDiffEq # to run the dynamics
-Random.seed!(0)
-
-iofunction(x::Real) = max(0.0,x)
-
-function run_rnn_dynamics(u0::Vector{R},W::Matrix{R},h::Vector{R},
-    tmax::R,dt::R=0.01;verbose=false) where R
-  f = function (du,u,p,t)
-    mul!(du,W,iofunction.(u))
-    @. du = du - u + h
-    return du
-  end
-  prob = ODEProblem(f,u0,(0.,tmax))
-  solv = solve(prob,Tsit5();verbose=verbose,saveat=dt)
-  ret_u =hcat(solv.u...)
-  ret_norms = mapslices(norm,ret_u;dims=1)[:]
-  return solv.t,ret_u,ret_norms
-end;
-
-# ## Build the starting weight matrix
-
-const sparseness = 0.5
-const ne = 35
-const ni = 15
-const ntot = ne+ni
-Wmask = hcat(fill(1.,ntot,ne),fill(-1.,ntot,ni)) # 1 for E , -1 for I, 0. for no connection
-for i in 1:ntot,j in 1:ntot
-  if i==j || rand()<sparseness
-    Wmask[i,j]=0.
-  end
-end
-heatmap(Wmask;
-  ratio=1,seriescolor=:bwr,
-  clims=(-1,1),cbar=nothing,axis=nothing,ticks=nothing,border=:none)
-#=
-The matrix `Wmask` shown above specifies the connectivy 
-(presence of a conneciton, and wether the neuron is E or I)
-The full weight matrix $W$ prior to optimization is defined as follows:
-=#
-W0 = 2.0 .* rand(ntot,ntot) .* Wmask;
-#=
-Even with the leaky term, the dynamics $\mathbf{u}(t)$ is very unstable.
-=#
-u0 = 3.0.*randn(ntot)
-h = 0.1 .* rand(ntot)
-times,dyn_t,dyn_norms = run_rnn_dynamics(u0,W0,h,10.0,0.05)
-plot(times,dyn_norms;
-  leg=false,linewidth=3,color=:black,xlabel="time",ylabel="norm(u(t))",
-  yscale=:log10,label="before optimization")
-
-# Note that the y-scale is exponential here.
-
-# ## Objective function that excludes diagonal
-using Optim
-#=
-To keep the signs of $W_{i,j}$ I make a reparametrization as follows.
-```math
-W_{i,j} = s_j \; \exp\left(\beta_{i,j}\right)
-```
-I then need to propagate the gradient of the SSA. I will also inclide a
-2-norm regularizer on the weights
-=#
-function objective_and_grad_constraints(x::Vector{R},grad::Union{Nothing,Vector{R}},
-    n::Integer,ssa_eps::R,alloc::SSA.SSAAlloc,W0::Matrix{R}) where R
-  betas=reshape(x,(n,n))
-  mat = @. exp(betas) * W0  # transform, apply constraints
-  gradmat = isnothing(grad) ? nothing : similar(mat)
-  obj = SSA.ssa!(mat,gradmat,alloc,ssa_eps)
-  if !isnothing(grad)
-    gradmat .*= mat # propagate gradient for constraint
-    for i in eachindex(gradmat)
-      grad[i]=gradmat[i]
-    end
-  end
-  return obj
-end;
-
-# ## Optimizer and optimization
-
-const ssa_eps=0.001
-const alloc = SSA.SSAAlloc(ntot)
-const y0 = map(w-> w!=0. ? log(abs(w)) : 0. ,W0[:])
-
-function objfun!(F,G,y)
-  λ = 3.0/length(y) # regularizer calibration
-  obj=objective_and_grad_constraints(y,G,ntot,ssa_eps,alloc,W0) # add the regularizer
-  obj += 0.5*λ*mapreduce(x->x^2,+,y)
-  if !isnothing(G)
-    @. G += λ*y # gradient of regularizer
-  end
-  return obj
-end
-
-opt_out = optimize(Optim.only_fg!(objfun!),y0,BFGS(),Optim.Options(iterations=1_000))
-y_opt=Optim.minimizer(opt_out)
-W_opt = Wmask .* exp.(reshape(y_opt,(ntot,ntot))); # convert from beta to weight
-
-# Comparison between inital matrix and the optimized version. 
-# Note the E/I separation and the spontaneous symmetry.
-_ = let wboth = hcat(W0,fill(NaN,ntot,10),W_opt)
-  _wex = extrema(W_opt)
-  _zero_rel =abs(_wex[1])/(_wex[2]-_wex[1])
-  _cgrad = cgrad([:blue,:white,:red],[0, _zero_rel ,1.])
-  heatmap(wboth;ratio=1,seriescolor=_cgrad,clim=_wex,
-    axis=nothing,ticks=nothing,border=:none)
-end
-
-# Now, I consider the norm of $\mathbf u(t)$ in the optimized system...
-times,dyn_t_opt,dyn_norms_opt = run_rnn_dynamics(u0,W_opt,h,40.0,0.05)
-plot(times,dyn_norms_opt;
-      leg=:topright,linewidth=3,color=:blue,
-      xlabel="time",ylabel="norm(x(t))", label="after optimization")
-
-#=
-STABLE !
-
-There seems to be a large initial amplificaiton, but the activity settles to a stable point.
-=#
-
-# ## Extras
-
-#=
-In gradient based optimization with no automatic differentiation, it is
-always necessary to test the gradient of the objective function.
-The procedure is illustrated below.
-=#
-
+using CairoMakie
 using Calculus
-function test_gradient(myobjfun,y0)
-  grad_an = similar(y0)
-  _ = myobjfun(1.0,grad_an,y0) # compute gradient analytically
-  grad_num = Calculus.gradient(y->myobjfun(1.0,nothing,y),y0) # compute it numerically
-  for (k,y) in enumerate(y0)
-    if y == 0.
-      grad_num[k] = 0.
-   end end
-  return (grad_an,grad_num)
+using LinearAlgebra
+using Optim
+using NLSolversBase: only_fg!
+using OrdinaryDiffEq
+using Random
+using SmoothedSpectralAbscissa
+const SSA = SmoothedSpectralAbscissa
+CairoMakie.activate!(type="svg")
+Random.seed!(0);
+
+iofunction(x::Real) = max(0.0, x)
+
+function run_rnn_dynamics(u0::Vector{R}, W::Matrix{R}, h::Vector{R},
+        tmax::R, dt::R=0.01) where R
+    function dynamics!(du, u, p, t)
+        mul!(du, W, iofunction.(u))
+        @. du = du - u + h
+        return nothing
+    end
+    problem = ODEProblem(dynamics!, u0, (0.0, tmax))
+    solution = solve(problem, Tsit5(); saveat=dt, abstol=1e-8, reltol=1e-8)
+    states = hcat(solution.u...)
+    norms = [norm(state) for state in eachcol(states)]
+    return solution.t, states, norms
+end;
+
+# ## Construct the connectivity
+rng = MersenneTwister(0)
+ne = 14
+ni = 6
+ntot = ne + ni
+sparseness = 0.5
+Wmask = hcat(ones(ntot, ne), -ones(ntot, ni))
+for i in 1:ntot, j in 1:ntot
+    if i == j || rand(rng) < sparseness
+        Wmask[i, j] = 0.0
+    end
+end
+W0 = 2.0 .* rand(rng, ntot, ntot) .* Wmask;
+
+# Rows are postsynaptic units; columns are presynaptic units.
+fig = Figure(size=(450, 400))
+ax = Axis(fig[1, 1]; title="Connectivity mask", xlabel="Presynaptic unit",
+    ylabel="Postsynaptic unit", aspect=DataAspect(), yreversed=true)
+hm = heatmap!(ax, permutedims(Wmask); colormap=:balance, colorrange=(-1, 1))
+Colorbar(fig[1, 2], hm)
+fig
+
+# ## Optimize without changing signs or sparsity
+# Parameterize the weights as ``W_{ij} = (Wmask)_{ij}\exp(β_{ij})``. The
+# objective uses the SSA of ``W-I``, including the leak term. The analytical
+# gradient with respect to β includes the chain-rule factor W.
+function objective_and_grad_constraints(x::Vector{R}, grad::Union{Nothing,Vector{R}},
+        n::Integer, ssa_eps::R, alloc::SSA.SSAAlloc, mask::Matrix{R}) where R
+    W = mask .* exp.(reshape(x, n, n))
+    A = W - I
+    gradmat = nothing
+    if !isnothing(grad)
+        gradmat = similar(W)
+    end
+    value = SSA.ssa!(A, gradmat, alloc, ssa_eps)
+    if !isnothing(grad)
+        gradmat .*= W
+        copyto!(grad, vec(gradmat))
+    end
+    return value
+end;
+
+# Initialize β so that reconstructing the weights yields W0. Masked entries
+# cannot affect the SSA, so their initial parameters are zero.
+y0 = zeros(ntot^2)
+for k in eachindex(W0)
+    if Wmask[k] != 0.0
+        y0[k] = log(abs(W0[k]))
+    end
+end
+ssa_eps = 0.001
+alloc = SSA.SSAAlloc(ntot)
+λ = 0.05 / ntot^2;
+
+# Penalize changes in β rather than in W. This keeps the weights near their
+# initial values while allowing the SSA to decrease.
+function objfun!(F, G, y)
+    value = objective_and_grad_constraints(y, G, ntot, ssa_eps, alloc, Wmask)
+    difference = y - y0
+    value += 0.5 * λ * sum(abs2, difference)
+    if !isnothing(G)
+        G .+= λ .* difference
+    end
+    return value
 end
 
-#=
-To enable testing, set `do_the_test=true`
-It is advised to reduce the size of the system.
-=#
+opt_out = optimize(only_fg!(objfun!), copy(y0), BFGS(),
+    Optim.Options(iterations=200))
+W_opt = Wmask .* exp.(reshape(Optim.minimizer(opt_out), ntot, ntot));
 
-(x1,x2)=test_gradient(objfun!,randn(ntot^2))
-scatter(x1,x2;ratio=1)
-plot!(identity)
+# Compare weights with the same diverging color scale and matrix orientation.
+color_limit = max(maximum(abs, W0), maximum(abs, W_opt))
+fig = Figure(size=(800, 350))
+ax_before = Axis(fig[1, 1]; title="Before", xlabel="Presynaptic unit",
+    ylabel="Postsynaptic unit", aspect=DataAspect(), yreversed=true)
+ax_after = Axis(fig[1, 2]; title="After", xlabel="Presynaptic unit",
+    aspect=DataAspect(), yreversed=true)
+heatmap!(ax_before, permutedims(W0); colormap=:balance,
+    colorrange=(-color_limit, color_limit))
+hm = heatmap!(ax_after, permutedims(W_opt); colormap=:balance,
+    colorrange=(-color_limit, color_limit))
+Colorbar(fig[1, 3], hm)
+fig
 
-# Literate.markdown("examples/03_EI.jl","docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/SmoothedSpectralAbscissa.jl/blob/master") #src
+# ## Compare the simulated dynamics
+u0 = 3.0 .* randn(rng, ntot)
+h = 0.1 .* rand(rng, ntot)
+times, _, norms_before = run_rnn_dynamics(u0, W0, h, 10.0, 0.05)
+_, _, norms_after = run_rnn_dynamics(u0, W_opt, h, 10.0, 0.05);
+
+fig = Figure(size=(700, 400))
+ax = Axis(fig[1, 1]; xlabel="Time", ylabel="‖u(t)‖", yscale=log10)
+lines!(ax, times, norms_before; color=:black, label="Before optimization")
+lines!(ax, times, norms_after; color=:blue, label="After optimization")
+axislegend(ax; position=:lt)
+fig
+
+# A negative SSA of W − I guarantees stability of the corresponding fully active
+# linear system. The plot checks the behavior of this particular rectified-linear
+# trajectory; it does not establish stability for every activation pattern.
+
+# ## Check the constrained gradient
+# A small example makes finite differences inexpensive. Masked entries have zero
+# SSA derivative, but a regularizer can still contribute to their total gradient.
+function test_gradient(objective, y)
+    analytical = similar(y)
+    objective(1.0, analytical, copy(y))
+    numerical = Calculus.gradient(x -> objective(1.0, nothing, x), copy(y))
+    return analytical, numerical
+end;
+
+small_mask = [0.0 -1.0; 1.0 0.0]
+small_y = [0.2, -0.3, 0.1, -0.1]
+small_alloc = SSA.SSAAlloc(2)
+small_objective = (F, G, y) -> objective_and_grad_constraints(
+    y, G, 2, 0.01, small_alloc, small_mask)
+grad_an, grad_num = test_gradient(small_objective, small_y);
+
+fig = Figure(size=(450, 400))
+ax = Axis(fig[1, 1]; xlabel="Finite-difference gradient",
+    ylabel="Analytical gradient", aspect=DataAspect())
+scatter!(ax, grad_num, grad_an)
+ablines!(ax, 0, 1; color=:black, linestyle=:dash)
+fig
+
+## #src
+using Test #src
+@testset "Constrained network helpers" begin #src
+    @test iofunction(-1.0) == 0.0 #src
+    @test iofunction(2.0) == 2.0 #src
+    # Test the ODE right-hand side through an analytically solvable trajectory. #src
+    ts, states, norms = run_rnn_dynamics([1.0, 2.0], zeros(2, 2), [0.2, 0.3], 0.2, 0.1) #src
+    @test isapprox(states[:, end], [0.2, 0.3] + ([1.0, 2.0] - [0.2, 0.3]) * exp(-0.2); atol=1e-7) #src
+    @test isapprox(norms[end], norm(states[:, end]); atol=1e-12) #src
+    @test length(ts) == 3 #src
+    @test length(first(run_rnn_dynamics([1.0], zeros(1, 1), [0.0], 0.02))) == 3 #src
+    @test isapprox(grad_an, grad_num; atol=1e-6, rtol=1e-3) #src
+    @test isapprox(grad_an[[1, 4]], zeros(2); atol=1e-12) #src
+    original = copy(small_y) #src
+    value = small_objective(1.0, nothing, small_y) #src
+    @test small_y == original #src
+    @test isapprox(value, SSA.ssa(small_mask .* exp.(reshape(small_y, 2, 2)) - I, 0.01); atol=1e-10) #src
+    @test isapprox(Wmask .* exp.(reshape(y0, ntot, ntot)), W0; atol=1e-12) #src
+    @test W_opt[Wmask .== 0] == zeros(count(iszero, Wmask)) #src
+    @test all(W_opt[Wmask .== 1] .> 0) #src
+    @test all(W_opt[Wmask .== -1] .< 0) #src
+    @test isapprox(diag(W_opt), zeros(ntot); atol=1e-12) #src
+    @test SSA.ssa(W_opt - I, ssa_eps) < SSA.ssa(W0 - I, ssa_eps) #src
+    @test SSA.spectral_abscissa(W_opt - I) < 0 #src
+    trial_y = y0 .+ 0.05 #src
+    analytical, numerical = test_gradient(objfun!, trial_y) #src
+    @test isapprox(analytical, numerical; atol=1e-5, rtol=1e-3) #src
+    @test isapprox(analytical[vec(Wmask) .== 0], fill(λ * 0.05, count(iszero, Wmask)); atol=1e-10) #src
+end #src
+## #src

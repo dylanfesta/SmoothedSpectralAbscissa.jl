@@ -57,15 +57,15 @@ SSA.ssa_withgradient
 
 ## Examples
 
-1. [**Comparison of SA and SSA**](./01_show_ssa.md)
-2. [**Stability-optimized linear systems**](./02_dynamics.md)
-3. [**Optimization of excitatory/inhibitory recurrent neural network**](./03_EI.md)
+1. [**Comparison of SA and SSA**](generated/01_show_ssa.md)
+2. [**Stability-optimized linear systems**](generated/02_dynamics.md)
+3. [**Optimization of excitatory/inhibitory recurrent neural network**](generated/03_EI.md)
 
 ## Advanced Interface
 
 When the SSA is used as optimization objective, it is convenient to use the advanced
-interface to avoid memory reallocation. The memory is pre-allocated in an object of type
-`SSA.SSAlloc`, which can then be used to call the `SSA.ssa_simple(...)` function multiple times.
+interface to reuse its working matrices. The memory is pre-allocated in an object of type
+`SSA.SSAAlloc`, which can then be used to call the `SSA.ssa!(...)` function multiple times.
 
 ```@docs
 SSA.SSAAlloc
@@ -76,6 +76,21 @@ function.
 
 ```@docs
 SSA.ssa!
+```
+
+The smoothing parameter defaults to `0.01 * 150 / size(A, 1)`.
+
+```@docs
+SSA.default_eps_ssa
+SSA.PQ_init!
+```
+
+### Legacy interface
+
+Use `SSA.ssa!` for new code. The following alias remains for compatibility.
+
+```@docs
+SSA.ssa_simple!
 ```
 
 ## Index

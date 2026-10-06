@@ -1,234 +1,209 @@
-# # Faster convergence for linear dynamcs
+# # Stability-optimized linear systems
 
-#=
-In this example, I show how the SSA can be used as objective to guarantee
-convergence or faster convergence for a linear dynamical system.
-=#
+# We use the SSA as a differentiable objective for improving the stability of a
+# linear dynamical system. A quadratic regularizer keeps the optimized matrix
+# near its initial value.
 
-# ## Optimization of all matrix elements
-
-# ### Initialization
-using Plots,NamedColors
+# ## Initialization
+using CairoMakie
+using Calculus
 using LinearAlgebra
+using Optim
+using NLSolversBase: only_fg!
 using Random
-using SmoothedSpectralAbscissa ; const SSA=SmoothedSpectralAbscissa
+using SmoothedSpectralAbscissa
+const SSA = SmoothedSpectralAbscissa
+CairoMakie.activate!(type="svg")
 Random.seed!(0);
 
-# ### Linear Dynamics
-
-#=
-Consider continuous linear dynamics, regulated by
-```math
-\frac{\text{d} \mathbf{x}}{\text{d}t} = A \mathbf{x}
-```
-The soluton is analytic and takes the form:
-```math
-\mathbf{x}(t) = \exp( A\,t )\;\mathbf{x}_0
-```
-Where $\mathbf{x}_0$ are the initial conditions. The function below computes the dynamical
-evolution of the system.
-=#
-
-function run_linear_dyn(A::Matrix{R},x0::Vector{R},tmax::Real,dt::Real=0.01) where R
-  ts = range(0,tmax;step=dt)
-  ret = Matrix{R}(undef,length(x0),length(ts))
-  for (k,t) in enumerate(ts)
-    ret[:,k]=exp(A.*t)*x0
-  end
-  retnrm = mapslices(norm,ret;dims=1)[:]
-  return ts,ret,retnrm
-end;
-
-
-# ### The optimization of the objective is done through Optim.jl and BFGS
-using Optim
-
-function objective_and_grad_simple(x::Vector{R},grad::Union{Nothing,Vector{R}},
-    n::Integer,ssa_eps::R,alloc::SSA.SSAAlloc) where R
-  mat=reshape(x,(n,n))
-  gradmat = isnothing(grad) ? nothing : similar(mat)
-  obj = SSA.ssa!(mat,gradmat,alloc,ssa_eps)
-  if !isnothing(grad)
-    for i in eachindex(gradmat)
-      grad[i]=gradmat[i]
+# ## Linear dynamics
+# For a system ``dx/dt = A x``, the solution is ``x(t) = \exp(A t) x_0``.
+function run_linear_dyn(A::Matrix{R}, x0::Vector{R}, tmax::Real, dt::Real=0.01) where R
+    times = range(0.0, tmax; step=dt)
+    states = Matrix{R}(undef, length(x0), length(times))
+    for (k, t) in enumerate(times)
+        states[:, k] = exp(A * t) * x0
     end
-  end
-  return obj
-end;
-## #src
-# ### Start with an unstable matrix
-
-n = 50
-A = randn(n,n) ./ sqrt(n) + 0.2I
-x0=randn(n)
-times,_,dyn_norms = run_linear_dyn(A,x0,3.,0.1)
-
-plot(times,dyn_norms; leg=false,linewidth=3,color=:black,xlabel="time",ylabel="norm(x(t))")
-
-# as expected, the norm grows exponentially with time.
-
-# ### Now do the gradient-based optimization
-const ssa_eps=0.001
-const alloc = SSA.SSAAlloc(n)
-const y0 = A[:];
-
-#=
-The objective function to be minimized is
-```math
-\text{obj}(A) = \text{SSA}(A) + \lambda \frac12 \left\| A - A_0 \right\|^2
-```
-Where $\lambda$ sets the relative weight.
-We are reducing the SSA while keeping the matrix elements close to their initial value.
-Adding some form of regularization is **always** necessary when otpimizing. If not,
-the SSA would run to $-\infty$.
-=#
-
-function objfun!(F,G,y)
-  λ = 50.0/length(y) # regularizer weight
-  obj=objective_and_grad_simple(y,G,n,ssa_eps,alloc) # SSA and gradient
-  ydiffs = y.-y0
-  obj += 0.5*λ*mapreduce(x->x^2,+,ydiffs) # add the regularizer
-  if !isnothing(G)
-    @. G += λ*ydiffs # add gradient of regularizer
-  end
-  return obj
+    norms = [norm(state) for state in eachcol(states)]
+    return times, states, norms
 end;
 
-# ### Optimize and show the results
+# ## Optimize all matrix elements
+# The objective is ``SSA(A) + (λ/2) \|A-A_0\|_F^2``. Its first term is
+# evaluated using reusable SSA storage and an analytical gradient.
+function objective_and_grad_simple(x::Vector{R}, grad::Union{Nothing,Vector{R}},
+        n::Integer, ssa_eps::R, alloc::SSA.SSAAlloc) where R
+    A = reshape(x, n, n)
+    gradmat = nothing
+    if !isnothing(grad)
+        gradmat = similar(A)
+    end
+    value = SSA.ssa!(A, gradmat, alloc, ssa_eps)
+    if !isnothing(grad)
+        copyto!(grad, vec(gradmat))
+    end
+    return value
+end;
 
-opt_out = optimize(Optim.only_fg!(objfun!),A[:],BFGS(),Optim.Options(iterations=50))
-y_opt=Optim.minimizer(opt_out)
-A_opt = reshape(y_opt,(n,n))
-times,_,dyn_norms_opt = run_linear_dyn(A_opt,x0,3.,0.1)
-plot(times,dyn_norms_opt;
-  leg=false,linewidth=3,color=:blue,xlabel="time",ylabel="norm(x(t)) optimized")
+n = 20
+A_full = randn(n, n) / sqrt(n) + 0.2I
+x0 = randn(n)
+y0_full = vec(copy(A_full))
+alloc_full = SSA.SSAAlloc(n)
+ssa_eps = 0.001
+λ_full = 0.5 / n
 
-#=
-The optimized matrix produces stable dynamics, as shown in the plot above.
-
-We can also take a look at the matrices before and after optimization
-=#
-
-heatmap(hcat(A,fill(NaN,n,10),A_opt);ratio=1,axis=nothing,ticks=nothing,border=:none,
-  colorbar=nothing)
-
-#=
-The optimized version simply has negative diagonal terms.
-
-This may appear a bit trivial. In the next part, I optimize a system *excluding* the diagonal.
-=#
-
-
-# ## Optimization that excludes the diagonal
-
-#=
-Here I consider a matrix that is stable, but produces a large nonlinear amplification.
-It is generated by the function:
-=#
-function rand_nonnormal(n::Integer,(ud::Real)=1.01)
-  mat = randn(n,n) ./ sqrt(n)
-  @show SSA.spectral_abscissa(mat)
-  mat = mat -  (1.1*SSA.spectral_abscissa(mat))*I
-  sh = schur(mat)
-  upd = diagm(0=>fill(1.0,n),1=>fill(ud,n-1))
-  return sh.vectors*upd*sh.Schur*inv(upd)*sh.vectors'
+function objfun_full!(F, G, y)
+    value = objective_and_grad_simple(y, G, n, ssa_eps, alloc_full)
+    difference = y - y0_full
+    value += 0.5 * λ_full * sum(abs2, difference)
+    if !isnothing(G)
+        G .+= λ_full .* difference
+    end
+    return value
 end
-# Let's make one and see how it looks like
-A = rand_nonnormal(n,1.0)
-x0=randn(n)
-times,dyn_t,dyn_norms = run_linear_dyn(A,x0,30.,0.5)
-plot(times,dyn_norms;
-  leg=false,linewidth=3,color=:black,xlabel="time",ylabel="norm(x(t))")
 
-#=
-The norm is initally amplified, and decreases slowly. This is due to the
-non-normality of matrix $A$.
-=#
+opt_full = optimize(only_fg!(objfun_full!), copy(y0_full), BFGS(),
+    Optim.Options(iterations=100))
+A_full_opt = reshape(Optim.minimizer(opt_full), n, n)
+times, _, norms_before = run_linear_dyn(A_full, x0, 5.0, 0.1)
+_, _, norms_after = run_linear_dyn(A_full_opt, x0, 5.0, 0.1);
 
-# ### Objective function that excludes diagonal
+# Compare the same initial condition before and after optimization.
+fig = Figure(size=(700, 400))
+ax = Axis(fig[1, 1]; xlabel="Time", ylabel="‖x(t)‖")
+lines!(ax, times, norms_before; color=:black, label="Before optimization")
+lines!(ax, times, norms_after; color=:blue, label="After optimization")
+axislegend(ax; position=:lt)
+fig
 
-function objective_and_grad_nodiag(x::Vector{R},grad::Union{Nothing,Vector{R}},
-    n::Integer,ssa_eps::R,alloc::SSA.SSAAlloc,A0::Matrix{R}) where R
-  mat=reshape(x,(n,n))
-  for i in 1:n
-    mat[i,i]=A0[i,i] # diagonal copied from original matrix
-  end
-  gradmat = isnothing(grad) ? nothing : similar(mat)
-  obj = SSA.ssa!(mat,gradmat,alloc,ssa_eps)
-  if !isnothing(grad)
+# The matrix comparison uses a shared color scale. Matrix rows run from top to
+# bottom, with columns along the horizontal axis.
+color_limit = max(maximum(abs, A_full), maximum(abs, A_full_opt))
+fig = Figure(size=(800, 350))
+ax_before = Axis(fig[1, 1]; title="Before", aspect=DataAspect(), yreversed=true)
+ax_after = Axis(fig[1, 2]; title="After", aspect=DataAspect(), yreversed=true)
+heatmap!(ax_before, permutedims(A_full); colormap=:balance,
+    colorrange=(-color_limit, color_limit))
+hm = heatmap!(ax_after, permutedims(A_full_opt); colormap=:balance,
+    colorrange=(-color_limit, color_limit))
+Colorbar(fig[1, 3], hm)
+fig
+
+# ## Optimize while preserving the diagonal
+# A stable, non-normal matrix can amplify activity temporarily. Here we optimize
+# its off-diagonal entries while preserving its original diagonal.
+function rand_nonnormal(rng::AbstractRNG, n::Integer, upper_diagonal::Real=1.01)
+    A = randn(rng, n, n) / sqrt(n)
+    A -= (SSA.spectral_abscissa(A) + 0.2) * I
+    F = schur(A)
+    transform = diagm(0 => ones(n), 1 => fill(upper_diagonal, n - 1))
+    return F.Z * (transform * F.T / transform) * F.Z'
+end;
+
+# Reconstruct a separate matrix to enforce the diagonal constraint. Changing a
+# view into the optimizer's vector here would invalidate its objective evaluations.
+function objective_and_grad_nodiag(x::Vector{R}, grad::Union{Nothing,Vector{R}},
+        n::Integer, ssa_eps::R, alloc::SSA.SSAAlloc, A0::Matrix{R}) where R
+    A = copy(reshape(x, n, n))
     for i in 1:n
-      gradmat[i,i] = 0.0 # diagonal has zero gradient
+        A[i, i] = A0[i, i]
     end
-    for i in eachindex(gradmat)
-      grad[i]=gradmat[i] # copy the gradient
+    gradmat = nothing
+    if !isnothing(grad)
+        gradmat = similar(A)
     end
-  end
-  return obj
+    value = SSA.ssa!(A, gradmat, alloc, ssa_eps)
+    if !isnothing(grad)
+        for i in 1:n
+            gradmat[i, i] = 0.0
+        end
+        copyto!(grad, vec(gradmat))
+    end
+    return value
 end;
 
-# ### Optimizer and optimization
+A_fixed = rand_nonnormal(MersenneTwister(1), n, 1.0)
+y0_fixed = vec(copy(A_fixed))
+alloc_fixed = SSA.SSAAlloc(n)
+λ_fixed = 1.0 / n^2
 
-#=
-The only difference from before is using
-`objective_and_grad_nodiag` rather than `objective_and_grad_simple`
-=#
-
-const ssa_eps=0.001
-const alloc = SSA.SSAAlloc(n)
-const y0 = A[:];
-
-function objfun!(F,G,y)
-  λ = 1.0/length(y) # regularizer weight
-  obj=objective_and_grad_nodiag(y,G,n,ssa_eps,alloc,A) # add the regularizer
-  ydiffs = y.-y0
-  obj += 0.5*λ*mapreduce(x->x^2,+,ydiffs)
-  if !isnothing(G)
-    @. G += λ*ydiffs # gradient of regularizer
-  end
-  return obj
+function objfun_fixed!(F, G, y)
+    value = objective_and_grad_nodiag(y, G, n, ssa_eps, alloc_fixed, A_fixed)
+    difference = y - y0_fixed
+    value += 0.5 * λ_fixed * sum(abs2, difference)
+    if !isnothing(G)
+        G .+= λ_fixed .* difference
+    end
+    return value
 end
 
-opt_out = optimize(Optim.only_fg!(objfun!),A[:],BFGS(),Optim.Options(iterations=50))
-y_opt=Optim.minimizer(opt_out)
-A_opt = reshape(y_opt,(n,n));
+opt_fixed = optimize(only_fg!(objfun_fixed!), copy(y0_fixed), BFGS(),
+    Optim.Options(iterations=100))
+A_fixed_opt = reshape(Optim.minimizer(opt_fixed), n, n)
+times, _, norms_before = run_linear_dyn(A_fixed, x0, 30.0, 0.5)
+_, _, norms_after = run_linear_dyn(A_fixed_opt, x0, 30.0, 0.5);
 
-# Now the optimized matrix looks remarkably similar to ro the original one,
-# as shown below.
-heatmap(hcat(A,fill(NaN,n,10),A_opt);ratio=1,axis=nothing,ticks=nothing,border=:none)
+# Compare transient amplification and relaxation.
+fig = Figure(size=(700, 400))
+ax = Axis(fig[1, 1]; xlabel="Time", ylabel="‖x(t)‖")
+lines!(ax, times, norms_before; color=:black, label="Before optimization")
+lines!(ax, times, norms_after; color=:blue, label="After optimization")
+axislegend(ax; position=:rt)
+fig
 
-# Here I show the differences between $A$ and $A_{\text{opt}}$.
-# (in case you don't believe they are different)
-heatmap(A-A_opt;ratio=1,axis=nothing,ticks=nothing,border=:none)
+# The difference plot makes the fixed diagonal visible.
+fig = Figure(size=(450, 400))
+ax = Axis(fig[1, 1]; title="A₀ − A optimized", aspect=DataAspect(), yreversed=true)
+hm = heatmap!(ax, permutedims(A_fixed - A_fixed_opt); colormap=:balance)
+Colorbar(fig[1, 2], hm)
+fig
 
-# Let's compare the time evolution of the norms
-times,dyn_t_opt,dyn_norms_opt = run_linear_dyn(A_opt,x0,30.,0.5)
-plot(times,[dyn_norms dyn_norms_opt];
-      leg=:topright,linewidth=3,color=[:black :blue],
-      xlabel="time",ylabel="norm(x(t))", label=["before otpimization" "after optimization"])
-#=
-![So much stability!](./meme1.png)
-=#
+# ## Check the gradients
+# Finite differences provide an independent check of the analytical gradients.
+# Use small matrices for these checks; numerical differentiation of a large
+# optimization problem is expensive.
+function test_gradient(objective, y)
+    analytical = similar(y)
+    objective(1.0, analytical, copy(y))
+    numerical = Calculus.gradient(x -> objective(1.0, nothing, x), copy(y))
+    return analytical, numerical
+end;
 
-# ## Extras
-
-#=
-In gradient based optimization with no automatic differentiation, it is
-always necessary to test the gradient of the objective function.
-The procedure is illustrated below.
-=#
-
-using Calculus
-function test_gradient(myobjfun,y0)
-  grad_an = similar(y0)
-  _ = myobjfun(1.0,grad_an,y0) # compute gradient analytically
-  grad_num = Calculus.gradient(y->myobjfun(1.0,nothing,y),y0) # compute it numerically
-  return (grad_an,grad_num)
-end
-
-_ = let do_the_test = false
-  if do_the_test
-    (x1,x2)=test_gradient(objfun!,randn(n^2))
-    scatter(x1,x2;ratio=1)
-    plot!(identity)
-  end
-end
+## #src
+using Test #src
+@testset "Linear dynamics and optimization helpers" begin #src
+    times_test, states, norms = run_linear_dyn([-1.0 0.0; 0.0 -2.0], ones(2), 0.2, 0.1) #src
+    @test isapprox(states[:, end], exp.([-0.2, -0.4]); atol=1e-12) #src
+    @test isapprox(norms[end], norm(states[:, end]); atol=1e-12) #src
+    @test length(times_test) == 3 #src
+    @test length(first(run_linear_dyn([-1.0;;], [1.0], 0.02))) == 3 #src
+    @test isapprox(SSA.spectral_abscissa(rand_nonnormal(MersenneTwister(7), 4)), -0.2; atol=1e-10) #src
+    small_A = [-0.8 0.3; -0.2 -1.0] #src
+    small_y = vec(copy(small_A)) #src
+    small_alloc = SSA.SSAAlloc(2) #src
+    for helper in (objective_and_grad_simple, objective_and_grad_nodiag) #src
+        if helper === objective_and_grad_simple #src
+            objective = (F, G, y) -> helper(y, G, 2, 0.01, small_alloc) #src
+        else #src
+            objective = (F, G, y) -> helper(y, G, 2, 0.01, small_alloc, small_A) #src
+        end #src
+        analytical, numerical = test_gradient(objective, small_y) #src
+        @test isapprox(analytical, numerical; atol=1e-6, rtol=1e-3) #src
+        trial = small_y .+ 0.1 #src
+        original = copy(trial) #src
+        objective(1.0, nothing, trial) #src
+        @test trial == original #src
+        if helper === objective_and_grad_nodiag #src
+            @test isapprox(analytical[[1, 4]], zeros(2); atol=1e-12) #src
+        end #src
+    end #src
+    for (objective, y) in ((objfun_full!, y0_full), (objfun_fixed!, y0_fixed)) #src
+        analytical, numerical = test_gradient(objective, y) #src
+        @test isapprox(analytical, numerical; atol=1e-5, rtol=1e-3) #src
+    end #src
+    @test isapprox(diag(A_fixed_opt), diag(A_fixed); atol=1e-12) #src
+    @test SSA.spectral_abscissa(A_full_opt) < 0 #src
+    @test SSA.ssa(A_fixed_opt, ssa_eps) < SSA.ssa(A_fixed, ssa_eps) #src
+end #src
+## #src

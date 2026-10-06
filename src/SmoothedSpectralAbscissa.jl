@@ -37,7 +37,7 @@ end
         default_eps_ssa(A::Matrix{Float64}) -> eps_ssa
 
 default value for the ``\\varepsilon`` used to compute the SSA. It scales with the matrix
-size, so that it takes the value 0.05 for a ``150 \\times 150`` matrix.
+size, so that it takes the value 0.01 for a ``150 \\times 150`` matrix.
 """
 default_eps_ssa(A::Matrix{<:Real}) = 0.01 * 150.0 / size(A,1)
 
@@ -242,7 +242,7 @@ and also its gradient with respect to each element of A.
 If `ssa_eps` is not specified, the default value is set by `default_eps_ssa(A)`
 
 In case you need to call the SSA iteratively (e.g. gradient-based optimization),
-please consider pre-allocating memory and using `ssa_simple!(...)`.
+please consider pre-allocating memory and using `ssa!(...)`.
 
 # Arguments
 - `A::Matrix{<:Real}`: A square matrix
