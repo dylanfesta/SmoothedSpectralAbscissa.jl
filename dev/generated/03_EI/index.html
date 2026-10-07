@@ -42,14 +42,14 @@ ax = Axis(fig[1, 1]; title=&quot;Connectivity mask&quot;, xlabel=&quot;Presynapt
 hm = heatmap!(ax, permutedims(Wmask); colormap=:balance, colorrange=(-1, 1))
 Colorbar(fig[1, 2], hm)
 fig</code></pre><img src="6a284a6c.svg" alt="Example block output"/><h2 id="Optimize-without-changing-signs-or-sparsity"><a class="docs-heading-anchor" href="#Optimize-without-changing-signs-or-sparsity">Optimize without changing signs or sparsity</a><a id="Optimize-without-changing-signs-or-sparsity-1"></a><a class="docs-heading-anchor-permalink" href="#Optimize-without-changing-signs-or-sparsity" title="Permalink"></a></h2><p>Parameterize the weights as <span>$W_{ij} = (Wmask)_{ij}\exp(β_{ij})$</span>. The objective uses the SSA of <span>$W-I$</span>, including the leak term. The analytical gradient with respect to β includes the chain-rule factor W.</p><pre><code class="language-julia hljs">function objective_and_grad_constraints(x::Vector{R}, grad::Union{Nothing,Vector{R}},
-        n::Integer, ssa_eps::R, alloc::SSA.SSAAlloc, mask::Matrix{R}) where R
+        n::Integer, ssa_eps::R, alloc::SSA.Workspace, mask::Matrix{R}) where R
     W = mask .* exp.(reshape(x, n, n))
     A = W - I
     gradmat = nothing
     if !isnothing(grad)
         gradmat = similar(W)
     end
-    value = SSA.ssa!(A, gradmat, alloc, ssa_eps)
+    value = SSA.ssa(A, ssa_eps; workspace=alloc, grad=gradmat)
     if !isnothing(grad)
         gradmat .*= W
         copyto!(grad, vec(gradmat))
@@ -62,7 +62,7 @@ for k in eachindex(W0)
     end
 end
 ssa_eps = 0.001
-alloc = SSA.SSAAlloc(ntot)
+alloc = SSA.Workspace(ntot)
 λ = 0.05 / ntot^2;</code></pre><p>Penalize changes in β rather than in W. This keeps the weights near their initial values while allowing the SSA to decrease.</p><pre><code class="language-julia hljs">function objfun!(F, G, y)
     value = objective_and_grad_constraints(y, G, ntot, ssa_eps, alloc, Wmask)
     difference = y - y0
@@ -105,7 +105,7 @@ end;
 
 small_mask = [0.0 -1.0; 1.0 0.0]
 small_y = [0.2, -0.3, 0.1, -0.1]
-small_alloc = SSA.SSAAlloc(2)
+small_alloc = SSA.Workspace(2)
 small_objective = (F, G, y) -&gt; objective_and_grad_constraints(
     y, G, 2, 0.01, small_alloc, small_mask)
 grad_an, grad_num = test_gradient(small_objective, small_y);
@@ -115,4 +115,4 @@ ax = Axis(fig[1, 1]; xlabel=&quot;Finite-difference gradient&quot;,
     ylabel=&quot;Analytical gradient&quot;, aspect=DataAspect())
 scatter!(ax, grad_num, grad_an)
 ablines!(ax, 0, 1; color=:black, linestyle=:dash)
-fig</code></pre><img src="e43f83cd.svg" alt="Example block output"/><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../02_dynamics/">« Stability-optimized linear systems</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Tuesday 6 October 2026 19:17">Tuesday 6 October 2026</span>. Using Julia version 1.13.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+fig</code></pre><img src="e43f83cd.svg" alt="Example block output"/><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../02_dynamics/">« Stability-optimized linear systems</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Wednesday 7 October 2026 08:21">Wednesday 7 October 2026</span>. Using Julia version 1.13.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

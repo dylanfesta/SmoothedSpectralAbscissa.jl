@@ -17,13 +17,13 @@ Random.seed!(0);</code></pre><h2 id="Linear-dynamics"><a class="docs-heading-anc
     norms = [norm(state) for state in eachcol(states)]
     return times, states, norms
 end;</code></pre><h2 id="Optimize-all-matrix-elements"><a class="docs-heading-anchor" href="#Optimize-all-matrix-elements">Optimize all matrix elements</a><a id="Optimize-all-matrix-elements-1"></a><a class="docs-heading-anchor-permalink" href="#Optimize-all-matrix-elements" title="Permalink"></a></h2><p>The objective is <span>$SSA(A) + (λ/2) \|A-A_0\|_F^2$</span>. Its first term is evaluated using reusable SSA storage and an analytical gradient.</p><pre><code class="language-julia hljs">function objective_and_grad_simple(x::Vector{R}, grad::Union{Nothing,Vector{R}},
-        n::Integer, ssa_eps::R, alloc::SSA.SSAAlloc) where R
+        n::Integer, ssa_eps::R, alloc::SSA.Workspace) where R
     A = reshape(x, n, n)
     gradmat = nothing
     if !isnothing(grad)
         gradmat = similar(A)
     end
-    value = SSA.ssa!(A, gradmat, alloc, ssa_eps)
+    value = SSA.ssa(A, ssa_eps; workspace=alloc, grad=gradmat)
     if !isnothing(grad)
         copyto!(grad, vec(gradmat))
     end
@@ -34,7 +34,7 @@ n = 20
 A_full = randn(n, n) / sqrt(n) + 0.2I
 x0 = randn(n)
 y0_full = vec(copy(A_full))
-alloc_full = SSA.SSAAlloc(n)
+alloc_full = SSA.Workspace(n)
 ssa_eps = 0.001
 λ_full = 0.5 / n
 
@@ -73,7 +73,7 @@ fig</code></pre><img src="e2370b80.svg" alt="Example block output"/><h2 id="Opti
     transform = diagm(0 =&gt; ones(n), 1 =&gt; fill(upper_diagonal, n - 1))
     return F.Z * (transform * F.T / transform) * F.Z&#39;
 end;</code></pre><p>Reconstruct a separate matrix to enforce the diagonal constraint. Changing a view into the optimizer&#39;s vector here would invalidate its objective evaluations.</p><pre><code class="language-julia hljs">function objective_and_grad_nodiag(x::Vector{R}, grad::Union{Nothing,Vector{R}},
-        n::Integer, ssa_eps::R, alloc::SSA.SSAAlloc, A0::Matrix{R}) where R
+        n::Integer, ssa_eps::R, alloc::SSA.Workspace, A0::Matrix{R}) where R
     A = copy(reshape(x, n, n))
     for i in 1:n
         A[i, i] = A0[i, i]
@@ -82,7 +82,7 @@ end;</code></pre><p>Reconstruct a separate matrix to enforce the diagonal constr
     if !isnothing(grad)
         gradmat = similar(A)
     end
-    value = SSA.ssa!(A, gradmat, alloc, ssa_eps)
+    value = SSA.ssa(A, ssa_eps; workspace=alloc, grad=gradmat)
     if !isnothing(grad)
         for i in 1:n
             gradmat[i, i] = 0.0
@@ -94,7 +94,7 @@ end;
 
 A_fixed = rand_nonnormal(MersenneTwister(1), n, 1.0)
 y0_fixed = vec(copy(A_fixed))
-alloc_fixed = SSA.SSAAlloc(n)
+alloc_fixed = SSA.Workspace(n)
 λ_fixed = 1.0 / n^2
 
 function objfun_fixed!(F, G, y)
@@ -125,4 +125,4 @@ fig</code></pre><img src="878faf22.svg" alt="Example block output"/><h2 id="Chec
     objective(1.0, analytical, copy(y))
     numerical = Calculus.gradient(x -&gt; objective(1.0, nothing, x), copy(y))
     return analytical, numerical
-end;</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../01_show_ssa/">« Comparison of SA and SSA</a><a class="docs-footer-nextpage" href="../03_EI/">Excitatory/inhibitory recurrent network »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Tuesday 6 October 2026 19:17">Tuesday 6 October 2026</span>. Using Julia version 1.13.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+end;</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../01_show_ssa/">« Comparison of SA and SSA</a><a class="docs-footer-nextpage" href="../03_EI/">Excitatory/inhibitory recurrent network »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Wednesday 7 October 2026 08:21">Wednesday 7 October 2026</span>. Using Julia version 1.13.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
