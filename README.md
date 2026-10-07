@@ -2,7 +2,7 @@
 
 [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://dylanfesta.github.io/SmoothedSpectralAbscissa.jl/dev/)
 [![CI](https://github.com/dylanfesta/SmoothedSpectralAbscissa.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/dylanfesta/SmoothedSpectralAbscissa.jl/actions/workflows/CI.yml)
-[![License: CC0 1.0](https://img.shields.io/badge/license-CC0%201.0-blue.svg)](LICENSE)
+[![License: CC0 1.0](https://img.shields.io/badge/license-CC0%201.0-white.svg)](LICENSE)
 
 This Julia package computes the smoothed spectral abscissa (SSA) of real square
 matrices and its gradient. For repeated computations, `Workspace` provides reusable
@@ -36,7 +36,7 @@ the executable documentation uses Makie and CairoMakie in a separate environment
 
 The algorithm is described in:
 
-> The Smoothed Spectral Abscissa for Robust Stability Optimization, J. Vanbiervliet et al., 2009. [DOI: 10.1137/070704034](https://doi.org/10.1137/070704034)
+> Vanbiervliet, J. et al. (2009) “The Smoothed Spectral Abscissa for Robust Stability Optimization,” *SIAM Journal on Optimization*, 20(1), pp. 156–171. Available at: [https://doi.org/10.1137/070704034](https://doi.org/10.1137/070704034).
 
 **Work in progress.** [Documentation and usage](https://dylanfesta.github.io/SmoothedSpectralAbscissa.jl/dev/).
 

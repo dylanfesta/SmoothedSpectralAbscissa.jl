@@ -1,11 +1,9 @@
 
 # Smoothed Spectral Abscissa (SSA)
 
-[![](https://img.shields.io/static/v1?logo=GitHub&label=.&message=SmoothedSpectralAbscissa.jl&color=blue)](https://github.com/dylanfesta/SmoothedSpectralAbscissa.jl)
-
 This package computes the smoothed spectral abscissa (SSA) of square matrices, and the associated gradient, as described in:
 
-> The Smoothed Spectral Abscissa for Robust Stability Optimization , J Vanbiervliet et al , 2009. [DOI: 10.1137/070704034](https://doi.org/10.1137/070704034)
+> Vanbiervliet, J. et al. (2009) “The Smoothed Spectral Abscissa for Robust Stability Optimization,” *SIAM Journal on Optimization*, 20(1), pp. 156–171. Available at: [https://doi.org/10.1137/070704034](https://doi.org/10.1137/070704034).
 
 The SSA is a smooth upper bound to the spectral abscissa of a matrix, that is, the highest real part of the eigenvalues.
 
