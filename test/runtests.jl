@@ -55,7 +55,7 @@ end
     # check SA
     n = 100
     mat = randn(n,n) + 1.4517I
-    alloc = SSA.SSAAlloc(n)
+    alloc = SSA.Workspace(n)
     @test begin
         sa1 = maximum(real.(eigvals(mat)))
         SSA.PQ_init!(alloc,mat)
@@ -82,21 +82,21 @@ end
     idm =diagm(0=>fill(1.0,n))
     matd = diagm(0=>fill(-0.05,n))
     fval=tr(lyap(matd,idm))
-    ssa=SSA.ssa!(matd,nothing,SSA.SSAAlloc(n),inv(fval))
+    ssa=SSA.ssa(matd,inv(fval); workspace=SSA.Workspace(n))
     @test isapprox(ssa,0.0;atol=1E-6)
     matrand=randn(n,n) ./ sqrt(n) - 1.1I
     fval=tr(lyap(matrand,idm))
-    ssa = SSA.ssa!(matrand,nothing,SSA.SSAAlloc(n),inv(fval))
+    ssa = SSA.ssa(matrand,inv(fval); workspace=SSA.Workspace(n))
     @test isapprox(ssa,0.0;atol=1E-6)
     matrand2 = matrand + 1.234I
-    ssa = SSA.ssa!(matrand2,nothing,SSA.SSAAlloc(n),inv(fval))
+    ssa = SSA.ssa(matrand2,inv(fval); workspace=SSA.Workspace(n))
     @test isapprox(ssa,1.234;atol=1E-6)
 end
 
 @testset "SSA Newton method" begin
     n = 50
     matrand=randn(n,n) ./ sqrt(n)
-    alloc=SSA.SSAAlloc(n)
+    alloc=SSA.Workspace(n)
     SSA.PQ_init!(alloc,matrand)
     sa_mat = SSA.spectral_abscissa(matrand)
     eps_ssa = SSA.default_eps_ssa(matrand)
@@ -107,8 +107,8 @@ end
         map(v-> v[1]/v[2],vv)
     end
     @test all(isapprox.(grad_num,grad_an;atol=1E-5))
-    ssa = SSA.ssa_simple!(matrand,nothing,alloc)
-    ssa_ntw =  SSA.ssa!(matrand,nothing,alloc;optim_method=SSA.OptimNewton)
+    ssa = SSA.ssa(matrand; workspace=alloc)
+    ssa_ntw =  SSA.ssa(matrand; workspace=alloc, optim_method=SSA.OptimNewton)
     @test isapprox(ssa,ssa_ntw;atol=1E-5)
 end
 
@@ -131,22 +131,22 @@ end
 @testset "SSA input-output weighting" begin
     A = [-1.0 0.0; 0.0 -2.0]
     A_original = copy(A)
-    alloc = SSA.SSAAlloc(A)
+    alloc = SSA.Workspace(A)
     grad = similar(A)
 
     for ssa_eps in (nothing, 0.2)
         expected_value, expected_grad = SSA.ssa_withgradient(A, ssa_eps)
-        @test isapprox(SSA.ssa(A, ssa_eps, I), expected_value; rtol=1E-12)
-        value, gradient = SSA.ssa_withgradient(A, ssa_eps, I)
+        @test isapprox(SSA.ssa(A, ssa_eps; input_output_weighting=I), expected_value; rtol=1E-12)
+        value, gradient = SSA.ssa_withgradient(A, ssa_eps; input_output_weighting=I)
         @test isapprox(value, expected_value; rtol=1E-12)
         @test isapprox(gradient, expected_grad; rtol=1E-12)
 
         for method in (SSA.OptimOrder2, SSA.OptimNewton)
-            value = SSA.ssa!(A, grad, alloc, ssa_eps;
+            value = SSA.ssa(A, ssa_eps; workspace=alloc, grad=grad,
                 optim_method=method, input_output_weighting=I)
             @test isapprox(value, expected_value; rtol=1E-10)
             @test isapprox(grad, expected_grad; rtol=1E-10)
-            value_without_gradient = SSA.ssa!(A, nothing, alloc, ssa_eps;
+            value_without_gradient = SSA.ssa(A, ssa_eps; workspace=alloc,
                 optim_method=method, input_output_weighting=I)
             @test isapprox(value_without_gradient, expected_value; rtol=1E-10)
         end
@@ -155,15 +155,17 @@ end
     unsupported_weights = (Matrix{Float64}(I, 2, 2), [2.0 0.0; 0.0 3.0],
         Diagonal([1.0, 1.0]), 2I, 0I, 1.0I)
     for weighting in unsupported_weights
-        @test_throws r"Input-output weighting.*not implemented" SSA.ssa(A, 0.2, weighting)
-        @test_throws r"Input-output weighting.*not implemented" SSA.ssa_withgradient(A, 0.2, weighting)
+        @test_throws r"Input-output weighting.*not implemented" SSA.ssa(A, 0.2; input_output_weighting=weighting)
+        @test_throws r"Input-output weighting.*not implemented" SSA.ssa_withgradient(A, 0.2; input_output_weighting=weighting)
         for method in (SSA.OptimOrder2, SSA.OptimNewton)
             fill!(grad, -99.0)
-            @test_throws r"Input-output weighting.*not implemented" SSA.ssa!(
-                A, grad, alloc, 0.2; optim_method=method,
+            @test_throws r"Input-output weighting.*not implemented" SSA.ssa(
+                A, 0.2; workspace=alloc, grad=grad, optim_method=method,
                 input_output_weighting=weighting)
             @test grad == fill(-99.0, size(A))
         end
     end
     @test A == A_original
 end
+
+include("workspace.jl")

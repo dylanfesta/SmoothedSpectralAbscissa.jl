@@ -61,21 +61,28 @@ SSA.ssa_withgradient
 2. [**Stability-optimized linear systems**](generated/02_dynamics.md)
 3. [**Optimization of excitatory/inhibitory recurrent neural network**](generated/03_EI.md)
 
-## Advanced Interface
+## Reusing working storage
 
-When the SSA is used as optimization objective, it is convenient to use the advanced
-interface to reuse its working matrices. The memory is pre-allocated in an object of type
-`SSA.SSAAlloc`, which can then be used to call the `SSA.ssa!(...)` function multiple times.
+Use the same `ssa` function for individual calls and repeated computations.
+Omitting `workspace` allocates working storage internally; supplying it reuses
+its matrices. For optimization, also preallocate the gradient:
 
-```@docs
-SSA.SSAAlloc
+```julia
+A = [-1.0 0.3; -0.2 -2.0]
+workspace = SSA.Workspace(A)
+gradient = similar(A)
+value = SSA.ssa(A, 0.2; workspace=workspace, grad=gradient)
 ```
 
-Once the space is allocated, the SSA and its gradient can be computed by the following
-function.
+`ssa` returns a scalar, preserves `A`, and overwrites the supplied workspace and
+gradient despite having no `!` suffix. `ssa_withgradient` returns a tuple and
+allocates a gradient matrix; it also accepts `workspace` and `optim_method`.
+Workspaces can be reused with different matrices of the same size, but must not
+be shared by concurrent computations. Input, gradient, and workspace buffers
+must not alias each other.
 
 ```@docs
-SSA.ssa!
+SSA.Workspace
 ```
 
 The smoothing parameter defaults to `0.01 * 150 / size(A, 1)`.
@@ -85,13 +92,14 @@ SSA.default_eps_ssa
 SSA.PQ_init!
 ```
 
-### Legacy interface
+### Migrating the API
 
-Use `SSA.ssa!` for new code. The following alias remains for compatibility.
-
-```@docs
-SSA.ssa_simple!
-```
+Replace `SSA.SSAAlloc(A)` with `SSA.Workspace(A)` and
+`SSA.ssa!(A, gradient, alloc, epsilon)` with
+`SSA.ssa(A, epsilon; workspace=workspace, grad=gradient)`.
+The legacy `ssa_simple!` wrapper has been removed. Pass weighting as
+`input_output_weighting=I`, rather than as a third positional argument.
+Only identity weighting is currently supported.
 
 ## Index
 

@@ -45,20 +45,20 @@ n = 15
 idm =diagm(0=>fill(1.0,n))
 matrand=randn(n,n) ./ sqrt(n) - 1.1I
 matrandln = lessnormal(matrand,1.00001)
-alloc=SSA.SSAAlloc(n)
+alloc=SSA.Workspace(n)
 
 ##
-SSA.ssa!(matrand,nothing,alloc)
-SSA.ssa!(matrandln,nothing,alloc)
+SSA.ssa(matrand; workspace=alloc)
+SSA.ssa(matrandln; workspace=alloc)
 
 ##
 
-@btime  SSA.ssa!($matrand,nothing,$alloc)
-@btime  SSA.ssa!($matrandln,nothing,$alloc)
+@btime  SSA.ssa($matrand; workspace=$alloc)
+@btime  SSA.ssa($matrandln; workspace=$alloc)
 println("\n\n")
-@btime  SSA.ssa!($matrand,nothing,$alloc;optim_method=SSA.OptimNewton)
-@btime  SSA.ssa!($matrandln,nothing,$alloc;optim_method=SSA.OptimNewton )
+@btime  SSA.ssa($matrand; workspace=$alloc, optim_method=SSA.OptimNewton)
+@btime  SSA.ssa($matrandln; workspace=$alloc, optim_method=SSA.OptimNewton)
 
 ##
 
-@descend_code_warntype SSA.ssa!(matrand,nothing,alloc)
+@descend_code_warntype SSA.ssa(matrand; workspace=alloc)

@@ -48,75 +48,69 @@ It scales inversely with the number of rows of `A` and equals `0.01` for a
 default_eps_ssa(A::Matrix{<:Real}) = 0.01 * 150.0 / size(A,1)
 
 
-struct SSAAlloc{R,C}
-    R::Matrix{R}
-    R_alloc::Matrix{R}
-    Rt::Matrix{R}
-    Z::Matrix{R}
-    Zt::Matrix{R}
-    D::Matrix{R}
-    D_alloc::Matrix{R}
-    Dt::Matrix{R}
-    At::Matrix{R}
-    P::Matrix{R}
-    Q::Matrix{R}
-    YZt_alloc::Matrix{R}
-    A_eigvals::Vector{C}
-end
 """
-    SSAAlloc(n::Integer) -> alloc
+    Workspace(n::Integer)
+    Workspace(A::Matrix{<:Real})
 
-Allocate reusable working storage for SSA computations on `n`-by-`n` matrices.
-The working matrices use `Float64`; cached eigenvalues use `ComplexF32`.
+Allocate reusable storage for SSA computations on nonempty square matrices.
+The twelve working matrices use `Float64`; cached eigenvalues use `ComplexF32`.
+`Workspace(A)` uses the size of `A`, irrespective of its element type, without
+copying it. Storage is uninitialized until `ssa` or `PQ_init!` is called.
 
-# Arguments
-- `n::Integer`: Number of rows and columns of the matrices used in SSA
-  computations.
-
-# Returns
-- `alloc::SSAAlloc{Float64,ComplexF32}`: Uninitialized working storage. `ssa!`
-  initializes the storage for the supplied matrix before computing the SSA.
+The type parameters describe the concrete matrix and vector container types:
+`Workspace{Matrix{Float64},Vector{ComplexF32}}` for these constructors.
+A workspace can be reused for different matrices of the same size. It is
+mutated during computation and must not be shared by concurrent calls.
 """
-function SSAAlloc(n::Integer)
-  return SSAAlloc(
-   map( _ -> Matrix{Float64}(undef,n,n),1:12)... , Vector{ComplexF32}(undef,n))
+struct Workspace{M,V}
+    R::M
+    R_alloc::M
+    Rt::M
+    Z::M
+    Zt::M
+    D::M
+    D_alloc::M
+    Dt::M
+    At::M
+    P::M
+    Q::M
+    YZt_alloc::M
+    A_eigvals::V
 end
 
-"""
-    SSAAlloc(A::Matrix{<:Real}) -> alloc
+function Workspace(n::Integer)
+    if n <= 0
+        throw(ArgumentError("Workspace size must be positive."))
+    end
+    return Workspace(
+        map(_ -> Matrix{Float64}(undef, n, n), 1:12)...,
+        Vector{ComplexF32}(undef, n))
+end
 
-Allocate reusable working storage with `SSAAlloc(size(A, 1))`.
-The element type of `A` does not change the storage types, and this constructor
-neither copies `A` nor initializes its Schur decompositions.
-
-# Arguments
-- `A::Matrix{<:Real}`: Square matrix whose size determines the working storage.
-
-# Returns
-- `alloc::SSAAlloc{Float64,ComplexF32}`: Uninitialized working storage with
-  `size(A, 1)`-by-`size(A, 1)` working matrices.
-"""
-function SSAAlloc(A::Matrix{<:Real})
-  return SSAAlloc(size(A,1))
+function Workspace(A::Matrix{<:Real})
+    if size(A, 1) != size(A, 2)
+        throw(DimensionMismatch("SSA requires a square matrix."))
+    end
+    return Workspace(size(A, 1))
 end
 
 """
-    PQ_init!(PQ::SSAAlloc{R,C}, A::Matrix{R}) -> nothing
+    PQ_init!(PQ::Workspace{Matrix{R},V}, A::Matrix{R}) -> nothing
 
 Initialize `PQ` with Schur decompositions of `A` and its transpose, the
 eigenvalues of `A`, and the transformed identity weighting matrices.
 Call once for each new `A`, before starting the root-finding procedure.
-`ssa!` calls this function internally.
+`ssa` calls this function internally.
 
 # Arguments
-- `PQ::SSAAlloc{R,C}`: Working storage with matrices of the same size and element
+- `PQ::Workspace{Matrix{R},V}`: Working storage with matrices of the same size and element
   type as `A`. Its cached decompositions and eigenvalues are overwritten.
 - `A::Matrix{R}`: Real square matrix to decompose. `A` is unchanged.
 
 # Returns
 - `nothing`: The precomputed quantities are stored in `PQ`.
 """
-function PQ_init!(PQ::SSAAlloc{R,C},A::Matrix{R}) where {R,C}
+function PQ_init!(PQ::Workspace{Matrix{R},V},A::Matrix{R}) where {R,V}
     At=transpose!(PQ.At,A)
     F = schur(A)
     copyto!(PQ.R,F.T)
@@ -130,8 +124,8 @@ function PQ_init!(PQ::SSAAlloc{R,C},A::Matrix{R}) where {R,C}
     return nothing
 end
 
-@inline function spectral_abscissa(PQ::SSAAlloc{R,C}) where {R,C}
-    return convert(R,maximum(real.(PQ.A_eigvals)))
+@inline function spectral_abscissa(PQ::Workspace)
+    return convert(eltype(PQ.R), maximum(real.(PQ.A_eigvals)))
 end
 function get_P_or_Q!(PorQ::M,s::Real,Z::M,R::M,D::M,
         YZt_alloc::M) where M<:Matrix{<:Real}
@@ -141,26 +135,26 @@ function get_P_or_Q!(PorQ::M,s::Real,Z::M,R::M,D::M,
     mul!(PorQ,Z,YZt_alloc,inv(scale),0.0)
     return nothing
 end
-function get_P!(s::T, PQ::SSAAlloc{T,C}) where {T,C}
+function get_P!(s::T, PQ::Workspace{Matrix{T},V}) where {T,V}
     R=copyto!(PQ.R_alloc,PQ.R)
     D=copyto!(PQ.D_alloc,PQ.D)
     get_P_or_Q!(PQ.P,s,PQ.Z,R,D,PQ.YZt_alloc)
     return nothing
 end
-function get_Q!(s::T, PQ::SSAAlloc{T,C}) where {T,C}
+function get_Q!(s::T, PQ::Workspace{Matrix{T},V}) where {T,V}
     R=copyto!(PQ.R_alloc,PQ.Rt)
     D=copyto!(PQ.D_alloc,PQ.Dt)
     get_P_or_Q!(PQ.Q,s,PQ.Zt,R,D,PQ.YZt_alloc)
     return nothing
 end
 
-function ssa_simple_obj(s::R,PQ::SSAAlloc{R,C},ssa_eps::R,sa::R) where {R,C}
+function ssa_simple_obj(s::R,PQ::Workspace{Matrix{R},V},ssa_eps::R,sa::R) where {R,V}
     get_P!( max(sa+eps(10.0),s) ,PQ) # SSA is not defined below SA !
     return inv(tr(PQ.P)) - ssa_eps
 end
 
 # Find zero with Newton!
-function ssa_simple_obj_newton(s::R,PQ::SSAAlloc{R,C},ssa_eps::R,sa::R) where {R,C}
+function ssa_simple_obj_newton(s::R,PQ::Workspace{Matrix{R},V},ssa_eps::R,sa::R) where {R,V}
   _s = max(sa+eps(10.0),s)
   get_P!(_s,PQ) # SSA is not defined below SA !
   get_Q!(_s,PQ)
@@ -172,55 +166,92 @@ function ssa_simple_obj_newton(s::R,PQ::SSAAlloc{R,C},ssa_eps::R,sa::R) where {R
 end
 
 
-"""
-    ssa!(A, grad, alloc, ssa_eps=nothing;
-         optim_method=SmoothedSpectralAbscissa.OptimOrder2,
-         input_output_weighting=LinearAlgebra.I) -> ssa_value
+function validate_ssa_inputs(A::Matrix{Float64}, grad, workspace::Workspace,
+        ssa_eps::Float64)
+    if size(A, 1) != size(A, 2)
+        throw(DimensionMismatch("SSA requires a square matrix."))
+    end
+    if isempty(A)
+        throw(ArgumentError("SSA requires a nonempty matrix."))
+    end
+    if !isfinite(ssa_eps) || ssa_eps <= 0
+        throw(ArgumentError("The smoothing parameter must be finite and positive."))
+    end
+    if !isnothing(grad)
+        if size(grad) != size(A)
+            throw(DimensionMismatch("Gradient dimensions must match A."))
+        end
+        if Base.mightalias(A, grad)
+            throw(ArgumentError("The gradient must not alias A."))
+        end
+    end
+    for name in fieldnames(typeof(workspace))
+        buffer = getfield(workspace, name)
+        expected_size = size(A)
+        if name === :A_eigvals
+            expected_size = (size(A, 1),)
+        end
+        if size(buffer) != expected_size
+            throw(DimensionMismatch("Workspace buffer $name has incompatible dimensions."))
+        end
+        if Base.mightalias(A, buffer)
+            throw(ArgumentError("Workspace buffers must not alias A."))
+        end
+        if !isnothing(grad)
+            if Base.mightalias(grad, buffer)
+                throw(ArgumentError("The gradient must not alias workspace buffers."))
+            end
+        end
+    end
+    return nothing
+end
 
-Compute the smoothed spectral abscissa (SSA) of `A` and optionally its gradient,
-using reusable working storage. `A` is unchanged; `alloc` and, when supplied,
-`grad` are overwritten.
+"""
+    ssa(A, ssa_eps=nothing; workspace=nothing, grad=nothing,
+        optim_method=SmoothedSpectralAbscissa.OptimOrder2,
+        input_output_weighting=LinearAlgebra.I) -> ssa_value
+
+Compute the smoothed spectral abscissa (SSA) of a nonempty square
+`Matrix{Float64}`. `A` is unchanged. Despite the absence of a `!` suffix,
+`workspace` and an optional `grad::Matrix{Float64}` are overwritten.
 
 For identity input/output weighting, the SSA is the shift `s` above the spectral
 abscissa of `A` for which `inv(tr(P)) == ssa_eps`, where `P` solves
 `(A - s*I)*P + P*(A - s*I)' + I = 0`.
 
-# Arguments
-- `A::Matrix{R}`: Real square matrix. With the current `SSAAlloc` constructors,
-  `R` must be `Float64`.
-- `grad::Union{Nothing,Matrix{R}}`: Pass `nothing` to skip the gradient computation,
-  or a matrix of the same size and element type as `A` to store the gradient.
-  Entry `grad[i, j]` is the derivative of the SSA with respect to `A[i, j]`.
-- `alloc::SSAAlloc{R,C}`: Reusable working storage with matrices of the same size
-  and element type as `A`, created by `SSAAlloc(A)` or `SSAAlloc(size(A, 1))`.
-- `ssa_eps::Union{Nothing,R}=nothing`: Positive smoothing parameter
-  ``\\varepsilon``. Pass `nothing` to use `default_eps_ssa(A)`.
+`ssa_eps` must be a finite positive `Float64`; `nothing` uses
+`default_eps_ssa(A)`. Pass `workspace=Workspace(A)` to reuse working storage;
+when omitted or `nothing`, storage is allocated internally. Workspace dimensions
+must match `A` and its matrix buffers must use `Float64`.
 
-# Keyword Arguments
-- `optim_method::Type=SmoothedSpectralAbscissa.OptimOrder2`: Root-finding method.
-  The supported types are `OptimOrder2` and `OptimNewton` from this module.
-  Pass the type itself rather than an instance.
-- `input_output_weighting::Union{UniformScaling,AbstractMatrix}=LinearAlgebra.I`:
-  Input/output weighting. Only `LinearAlgebra.I` is implemented. Matrices and
-  other uniform scaling operators throw an error indicating that the weighting
-  is not implemented, including explicit identity matrices.
+Pass `grad=similar(A)` to store the gradient while returning only the SSA value.
+Entry `grad[i, j]` is the derivative with respect to `A[i, j]`. The gradient
+must match the dimensions of `A`. Input, gradient, and workspace storage must
+not alias each other.
 
-# Returns
-- `ssa_value::R`: Smoothed spectral abscissa ``\\tilde{\\alpha}_\\varepsilon(A)``.
-  The gradient, when requested, is stored in `grad`.
+`optim_method` accepts the types `OptimOrder2` (default) and `OptimNewton`,
+not instances. Only `input_output_weighting=LinearAlgebra.I` is implemented;
+explicit identity matrices and other uniform scaling operators raise an error.
 """
-function ssa!(A::Matrix{R},grad::Union{Nothing,Matrix{R}}, alloc::SSAAlloc{R,C},
-    ssa_eps::Union{Nothing,R}=nothing ; optim_method::Type=OptimOrder2,
-    input_output_weighting::Union{UniformScaling,AbstractMatrix}=I) where {R,C}
-  if input_output_weighting !== I
-    error("Input-output weighting other than LinearAlgebra.I is not implemented.")
-  end
-  _ssa_eps = something(ssa_eps, default_eps_ssa(A))
-  return ssa!(A,grad,alloc,_ssa_eps,optim_method)
+function ssa(A::Matrix{Float64}, ssa_eps::Union{Nothing,Float64}=nothing;
+        workspace::Union{Nothing,Workspace{Matrix{Float64}}}=nothing,
+        grad::Union{Nothing,Matrix{Float64}}=nothing,
+        optim_method::Type=OptimOrder2,
+        input_output_weighting::Union{UniformScaling,AbstractMatrix}=I)
+    if input_output_weighting !== I
+        error("Input-output weighting other than LinearAlgebra.I is not implemented.")
+    end
+    if isnothing(workspace)
+        workspace = Workspace(A)
+    end
+    epsilon = something(ssa_eps, default_eps_ssa(A))
+    validate_ssa_inputs(A, grad, workspace, epsilon)
+    return _ssa!(A, grad, workspace, epsilon, optim_method)
 end
+
 # Order2() to find roots
-function ssa!(A::Matrix{R},grad::Union{Nothing,Matrix{R}}, alloc::SSAAlloc{R,C},
-     ssa_eps::R , optim_method::Type{OptimOrder2}) where {R,C}
+function _ssa!(A::Matrix{R},grad::Union{Nothing,Matrix{R}}, alloc::Workspace{Matrix{R},V},
+     ssa_eps::R , optim_method::Type{OptimOrder2}) where {R,V}
   PQ_init!(alloc,A)
   _sa = spectral_abscissa(alloc)
   _start = _sa + 0.5*ssa_eps
@@ -239,8 +270,8 @@ function ssa!(A::Matrix{R},grad::Union{Nothing,Matrix{R}}, alloc::SSAAlloc{R,C},
 end
 
 # newton to find roots
-function ssa!(A::Matrix{R},grad::Union{Nothing,Matrix{R}}, alloc::SSAAlloc{R,C},
-     ssa_eps::R , optim_method::Type{OptimNewton}) where {R,C}
+function _ssa!(A::Matrix{R},grad::Union{Nothing,Matrix{R}}, alloc::Workspace{Matrix{R},V},
+     ssa_eps::R , optim_method::Type{OptimNewton}) where {R,V}
   PQ_init!(alloc,A)
   _sa = spectral_abscissa(alloc)
   _start = _sa + 0.5*ssa_eps # _start = _sa + 0.1abs(_sa)
@@ -260,101 +291,27 @@ end
 
 
 """
-    ssa_simple!(A, grad, PQ, ssa_eps=nothing) -> ssa_value
+    ssa_withgradient(A, ssa_eps=nothing; workspace=nothing,
+        optim_method=SmoothedSpectralAbscissa.OptimOrder2,
+        input_output_weighting=LinearAlgebra.I) -> (ssa_value, gradient)
 
-Legacy wrapper retained for testing. Equivalent to `ssa!(A, grad, PQ, ssa_eps)`
-with the default root-finding method and identity input/output weighting.
-Use `ssa!` for new code.
+Compute the SSA and allocate its gradient matrix. Accepts the same input,
+smoothing parameter, workspace, solver, and weighting options as [`ssa`](@ref).
+`A` is unchanged; a supplied workspace is overwritten and reused. A workspace
+is allocated internally when omitted or `nothing`.
 
-# Arguments
-- `A::Matrix{R}`: Real square matrix. With the current `SSAAlloc` constructors,
-  `R` must be `Float64`.
-- `grad::Union{Nothing,Matrix{R}}`: Pass `nothing` to skip the gradient computation,
-  or a matrix of the same size and element type as `A` to store the gradient.
-- `PQ::SSAAlloc{R,C}`: Reusable working storage with matrices of the same size
-  and element type as `A`. Overwritten during the computation.
-- `ssa_eps::Union{Nothing,R}=nothing`: Positive smoothing parameter
-  ``\\varepsilon``. Pass `nothing` to use `default_eps_ssa(A)`.
-
-# Returns
-- `ssa_value::R`: Smoothed spectral abscissa ``\\tilde{\\alpha}_\\varepsilon(A)``.
-  The gradient, when requested, is stored in `grad`; `A` is unchanged.
+For repeated computations, preallocate both a workspace and gradient matrix,
+then call `ssa(A, ssa_eps; workspace=workspace, grad=gradient)`.
 """
-function ssa_simple!(A::Matrix{R},grad::Union{Nothing,Matrix{R}},
-        PQ::SSAAlloc{R,C},ssa_eps::Union{Nothing,R}=nothing) where {R,C}
- return ssa!(A,grad,PQ,ssa_eps)
+function ssa_withgradient(A::Matrix{Float64},
+        ssa_eps::Union{Nothing,Float64}=nothing;
+        workspace::Union{Nothing,Workspace{Matrix{Float64}}}=nothing,
+        optim_method::Type=OptimOrder2,
+        input_output_weighting::Union{UniformScaling,AbstractMatrix}=I)
+    gradient = similar(A)
+    value = ssa(A, ssa_eps; workspace=workspace, grad=gradient,
+        optim_method=optim_method, input_output_weighting=input_output_weighting)
+    return value, gradient
 end
-
-
-# short versions that also allocates the memory
-"""
-    ssa(A, ssa_eps=nothing,
-        input_output_weighting=LinearAlgebra.I) -> ssa_value
-
-Compute the smoothed spectral abscissa (SSA) of `A`, allocating working storage
-internally. `A` is unchanged. See `ssa!` for the defining equation.
-
-# Arguments
-- `A::Matrix{Float64}`: Real square matrix. The current working-storage
-  constructors require `Float64` inputs for this computation.
-- `ssa_eps::Union{Nothing,Float64}=nothing`: Positive smoothing parameter
-  ``\\varepsilon``. Pass `nothing` to use `default_eps_ssa(A)`.
-- `input_output_weighting::Union{UniformScaling,AbstractMatrix}=LinearAlgebra.I`:
-  Optional third positional argument specifying input/output weighting. Only
-  `LinearAlgebra.I` is implemented. Matrices and other uniform scaling operators
-  throw an error indicating that the weighting is not implemented, including
-  explicit identity matrices.
-
-# Returns
-- `ssa_value::Float64`: Smoothed spectral abscissa
-  ``\\tilde{\\alpha}_\\varepsilon(A)``.
-"""
-function ssa(A::Matrix{R},ssa_eps::Union{Nothing,R}=nothing,
-    input_output_weighting::Union{UniformScaling,AbstractMatrix}=I) where R
-  alloc=SSAAlloc(size(A,1))
-  _epsssa = something(ssa_eps, default_eps_ssa(A))
-  return ssa!(copy(A),nothing,alloc, _epsssa;input_output_weighting=input_output_weighting)
-end
-
-"""
-    ssa_withgradient(A, ssa_eps=nothing,
-                     input_output_weighting=LinearAlgebra.I)
-        -> (ssa_value, gradmat)
-
-Compute the smoothed spectral abscissa (SSA) of `A` and its gradient with respect
-to each entry of `A`, allocating working storage and the gradient matrix
-internally. `A` is unchanged. See `ssa!` for the defining equation.
-
-For repeated computations, preallocate working storage and a gradient matrix,
-then use `ssa!`.
-
-# Arguments
-- `A::Matrix{Float64}`: Real square matrix. The current working-storage
-  constructors require `Float64` inputs for this computation.
-- `ssa_eps::Union{Nothing,Float64}=nothing`: Positive smoothing parameter
-  ``\\varepsilon``. Pass `nothing` to use `default_eps_ssa(A)`.
-- `input_output_weighting::Union{UniformScaling,AbstractMatrix}=LinearAlgebra.I`:
-  Optional third positional argument specifying input/output weighting. Only
-  `LinearAlgebra.I` is implemented. Matrices and other uniform scaling operators
-  throw an error indicating that the weighting is not implemented, including
-  explicit identity matrices.
-
-# Returns
-A tuple `(ssa_value, gradmat)` containing:
-
-- `ssa_value::Float64`: Smoothed spectral abscissa
-  ``\\tilde{\\alpha}_\\varepsilon(A)``.
-- `gradmat::Matrix{Float64}`: Gradient matrix of the same size as `A`.
-  Entry `gradmat[i, j]` is the derivative of the SSA with respect to `A[i, j]`.
-"""
-function ssa_withgradient(A::Matrix{R},ssa_eps::Union{Nothing,R}=nothing,
-        input_output_weighting::Union{UniformScaling,AbstractMatrix}=I) where R
-    alloc=SSAAlloc(size(A,1))
-    gradmat=similar(A)
-    epsssa = something(ssa_eps, default_eps_ssa(A))
-    _ssa = ssa!(copy(A),gradmat,alloc, epsssa;input_output_weighting=input_output_weighting)
-    return _ssa,gradmat
-end
-
 
 end # module

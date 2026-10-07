@@ -63,14 +63,14 @@ fig
 # objective uses the SSA of ``W-I``, including the leak term. The analytical
 # gradient with respect to β includes the chain-rule factor W.
 function objective_and_grad_constraints(x::Vector{R}, grad::Union{Nothing,Vector{R}},
-        n::Integer, ssa_eps::R, alloc::SSA.SSAAlloc, mask::Matrix{R}) where R
+        n::Integer, ssa_eps::R, alloc::SSA.Workspace, mask::Matrix{R}) where R
     W = mask .* exp.(reshape(x, n, n))
     A = W - I
     gradmat = nothing
     if !isnothing(grad)
         gradmat = similar(W)
     end
-    value = SSA.ssa!(A, gradmat, alloc, ssa_eps)
+    value = SSA.ssa(A, ssa_eps; workspace=alloc, grad=gradmat)
     if !isnothing(grad)
         gradmat .*= W
         copyto!(grad, vec(gradmat))
@@ -87,7 +87,7 @@ for k in eachindex(W0)
     end
 end
 ssa_eps = 0.001
-alloc = SSA.SSAAlloc(ntot)
+alloc = SSA.Workspace(ntot)
 λ = 0.05 / ntot^2;
 
 # Penalize changes in β rather than in W. This keeps the weights near their
@@ -149,7 +149,7 @@ end;
 
 small_mask = [0.0 -1.0; 1.0 0.0]
 small_y = [0.2, -0.3, 0.1, -0.1]
-small_alloc = SSA.SSAAlloc(2)
+small_alloc = SSA.Workspace(2)
 small_objective = (F, G, y) -> objective_and_grad_constraints(
     y, G, 2, 0.01, small_alloc, small_mask)
 grad_an, grad_num = test_gradient(small_objective, small_y);

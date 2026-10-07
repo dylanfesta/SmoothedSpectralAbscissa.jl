@@ -28,9 +28,9 @@ ssa_allocs = similar(ssa_times)
 
 
 for (k,n) in enumerate(sizes)
-  alloc = SSA.SSAAlloc(n)
+  alloc = SSA.Workspace(n)
   A=rand_nonnormal(n,1.0)
-  be = @benchmark SSA.ssa!($A,nothing,$alloc)
+  be = @benchmark SSA.ssa($A; workspace=$alloc)
   ssa_times[k] = median(be.times)
   ssa_allocs[k] = be.allocs
 end

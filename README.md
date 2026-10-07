@@ -5,9 +5,31 @@
 [![License: CC0 1.0](https://img.shields.io/badge/license-CC0%201.0-blue.svg)](LICENSE)
 
 This Julia package computes the smoothed spectral abscissa (SSA) of real square
-matrices and its gradient. For repeated computations, `SSAAlloc` provides reusable
+matrices and its gradient. For repeated computations, `Workspace` provides reusable
 working matrices. The current implementation uses identity input/output weighting
 matrices (the simplified formulation without projections).
+
+```julia
+using SmoothedSpectralAbscissa
+const SSA = SmoothedSpectralAbscissa
+A = [-1.0 0.3; -0.2 -2.0]
+value = SSA.ssa(A)
+value, gradient = SSA.ssa_withgradient(A)
+
+# Reuse storage across calls for matrices of the same size.
+workspace = SSA.Workspace(A)
+gradient = similar(A)
+value = SSA.ssa(A, 0.2; workspace=workspace, grad=gradient)
+```
+
+`ssa` preserves `A` and overwrites supplied workspace and gradient storage.
+Omitting the workspace allocates it internally. Computations currently require
+`Matrix{Float64}` inputs.
+
+This API replaces `SSAAlloc` with `Workspace` and `ssa!` with
+`ssa(A, ssa_eps; workspace=workspace, grad=gradient)`. The legacy `ssa_simple!`
+wrapper is removed. Input/output weighting is now a keyword argument on both
+`ssa` and `ssa_withgradient`.
 
 Requires **Julia 1.10 or later**. The package has no plotting dependencies;
 the executable documentation uses Makie and CairoMakie in a separate environment.

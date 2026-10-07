@@ -32,13 +32,13 @@ end;
 # The objective is ``SSA(A) + (λ/2) \|A-A_0\|_F^2``. Its first term is
 # evaluated using reusable SSA storage and an analytical gradient.
 function objective_and_grad_simple(x::Vector{R}, grad::Union{Nothing,Vector{R}},
-        n::Integer, ssa_eps::R, alloc::SSA.SSAAlloc) where R
+        n::Integer, ssa_eps::R, alloc::SSA.Workspace) where R
     A = reshape(x, n, n)
     gradmat = nothing
     if !isnothing(grad)
         gradmat = similar(A)
     end
-    value = SSA.ssa!(A, gradmat, alloc, ssa_eps)
+    value = SSA.ssa(A, ssa_eps; workspace=alloc, grad=gradmat)
     if !isnothing(grad)
         copyto!(grad, vec(gradmat))
     end
@@ -49,7 +49,7 @@ n = 20
 A_full = randn(n, n) / sqrt(n) + 0.2I
 x0 = randn(n)
 y0_full = vec(copy(A_full))
-alloc_full = SSA.SSAAlloc(n)
+alloc_full = SSA.Workspace(n)
 ssa_eps = 0.001
 λ_full = 0.5 / n
 
@@ -104,7 +104,7 @@ end;
 # Reconstruct a separate matrix to enforce the diagonal constraint. Changing a
 # view into the optimizer's vector here would invalidate its objective evaluations.
 function objective_and_grad_nodiag(x::Vector{R}, grad::Union{Nothing,Vector{R}},
-        n::Integer, ssa_eps::R, alloc::SSA.SSAAlloc, A0::Matrix{R}) where R
+        n::Integer, ssa_eps::R, alloc::SSA.Workspace, A0::Matrix{R}) where R
     A = copy(reshape(x, n, n))
     for i in 1:n
         A[i, i] = A0[i, i]
@@ -113,7 +113,7 @@ function objective_and_grad_nodiag(x::Vector{R}, grad::Union{Nothing,Vector{R}},
     if !isnothing(grad)
         gradmat = similar(A)
     end
-    value = SSA.ssa!(A, gradmat, alloc, ssa_eps)
+    value = SSA.ssa(A, ssa_eps; workspace=alloc, grad=gradmat)
     if !isnothing(grad)
         for i in 1:n
             gradmat[i, i] = 0.0
@@ -125,7 +125,7 @@ end;
 
 A_fixed = rand_nonnormal(MersenneTwister(1), n, 1.0)
 y0_fixed = vec(copy(A_fixed))
-alloc_fixed = SSA.SSAAlloc(n)
+alloc_fixed = SSA.Workspace(n)
 λ_fixed = 1.0 / n^2
 
 function objfun_fixed!(F, G, y)
@@ -181,7 +181,7 @@ using Test #src
     @test isapprox(SSA.spectral_abscissa(rand_nonnormal(MersenneTwister(7), 4)), -0.2; atol=1e-10) #src
     small_A = [-0.8 0.3; -0.2 -1.0] #src
     small_y = vec(copy(small_A)) #src
-    small_alloc = SSA.SSAAlloc(2) #src
+    small_alloc = SSA.Workspace(2) #src
     for helper in (objective_and_grad_simple, objective_and_grad_nodiag) #src
         if helper === objective_and_grad_simple #src
             objective = (F, G, y) -> helper(y, G, 2, 0.01, small_alloc) #src

@@ -16,8 +16,9 @@ smoothed spectral abscissa (SSA) and its gradient.
 - Prefer Julia multiple dispatch over large conditional branches when behavior
   depends on model/input/recorder types.
 - Use mutating functions with a `!` suffix and return `nothing` unless there is a
-  clear reason to return a value. In particular, `ssa!` returns the SSA value.
-- Keep allocations visible and intentional. Reuse `SSAAlloc` working
+  clear reason to return a value. Public `ssa` is an explicit exception: it returns the SSA value while
+  overwriting optional workspace and gradient buffers.
+- Keep allocations visible and intentional. Reuse `Workspace` working
   matrices where that matches the local design.
 - Keep public names, struct fields, and function signatures boring and explicit;
   avoid clever API layers while the model set is small.
